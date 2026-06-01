@@ -45,6 +45,9 @@ enum {
   kMsgDrawSelect  = 'SdSl',
   kMsgDebugToggle = 'SdTg',
   kMsgBrowseMascot = 'SbMc',
+  kMsgTtsToggle    = 'StTg',
+  kMsgVoiceSelect  = 'SvSl',
+  kMsgSpeedSelect  = 'SsSl',
 };
 
 struct ModelInfo {
@@ -185,6 +188,63 @@ MoeSettingsWindow::MoeSettingsWindow(void)
 
   tabView->AddTab(mascotTab);
 
+  // === Voice Tab ===
+  BView* voiceTab = new BView(B_TRANSLATE("Voice"), B_WILL_DRAW);
+  voiceTab->SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
+
+  fTtsEnabledCheck = new BCheckBox("tts_enabled",
+    B_TRANSLATE("Read responses aloud"),
+    new BMessage(kMsgTtsToggle));
+
+  // Voice selection
+  BPopUpMenu* voiceMenu = new BPopUpMenu("");
+  {
+    BMessage* m1 = new BMessage(kMsgVoiceSelect);
+    m1->AddString("voice", "espeak");
+    voiceMenu->AddItem(new BMenuItem(
+      B_TRANSLATE("espeak (fast, robotic)"), m1));
+
+    BMessage* m2 = new BMessage(kMsgVoiceSelect);
+    m2->AddString("voice", "it_IT-dii");
+    voiceMenu->AddItem(new BMenuItem(
+      B_TRANSLATE("Piper Female (natural, slow)"), m2));
+
+    BMessage* m3 = new BMessage(kMsgVoiceSelect);
+    m3->AddString("voice", "it_IT-miro");
+    voiceMenu->AddItem(new BMenuItem(
+      B_TRANSLATE("Piper Male (natural, slow)"), m3));
+  }
+  fVoiceField = new BMenuField(B_TRANSLATE("Voice:"), voiceMenu);
+
+  // Speed
+  BPopUpMenu* speedMenu = new BPopUpMenu("");
+  {
+    const struct { const char* label; const char* val; } speeds[] = {
+      { "Slow",    "130" },
+      { "Normal",  "160" },
+      { "Fast",    "190" },
+      { "Fastest", "220" },
+    };
+    for (int i = 0; i < 4; i++) {
+      BMessage* sm = new BMessage(kMsgSpeedSelect);
+      sm->AddString("speed", speeds[i].val);
+      speedMenu->AddItem(new BMenuItem(speeds[i].label, sm));
+    }
+  }
+  fSpeedField = new BMenuField(B_TRANSLATE("Speed:"), speedMenu);
+
+  BLayoutBuilder::Group<>(voiceTab, B_VERTICAL, 4)
+    .SetInsets(B_USE_DEFAULT_SPACING)
+    .Add(fTtsEnabledCheck)
+    .Add(fVoiceField)
+    .Add(fSpeedField)
+    .AddGlue()
+    .Add(new BStringView("voice_info",
+      B_TRANSLATE("Language is detected automatically.")))
+  .End();
+
+  tabView->AddTab(voiceTab);
+
   // === Window layout ===
   BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
     .Add(tabView)
@@ -241,6 +301,33 @@ MoeSettingsWindow::ShowNear(BRect mascotFrame)
   if (IsHidden())
     Show();
   Activate();
+}
+
+
+static BString
+_ReadConfigString(const char* filename, const char* defaultVal)
+{
+  BString path(MOE_CONFIG_DIRECTORY);
+  path << filename;
+  BFile file(path.String(), B_READ_ONLY);
+  if (file.InitCheck() != B_OK)
+    return BString(defaultVal);
+
+  off_t size;
+  file.GetSize(&size);
+  if (size <= 0 || size > 4096)
+    return BString(defaultVal);
+
+  BString result;
+  char* buf = result.LockBuffer(size + 1);
+  file.Read(buf, size);
+  buf[size] = '\0';
+  result.UnlockBuffer(size);
+  result.Trim();
+
+  if (result.Length() == 0)
+    return BString(defaultVal);
+  return result;
 }
 
 
@@ -356,6 +443,32 @@ MoeSettingsWindow::_LoadSettings(void)
 
   // Debug frame
   fDebugFrameCheck->SetValue(property->IsDebugFrameVisible() ? 1 : 0);
+
+  // Load TTS settings
+  BString ttsEnabled = _ReadConfigString("tts_enabled", "0");
+  fTtsEnabledCheck->SetValue(ttsEnabled == "1" ? 1 : 0);
+
+  BString voice = _ReadConfigString("tts_voice", "espeak");
+  BMenu* vMenu = fVoiceField->Menu();
+  for (int32 i = 0; i < vMenu->CountItems(); i++) {
+    BMenuItem* item = vMenu->ItemAt(i);
+    if (item) {
+      const char* v;
+      if (item->Message()->FindString("voice", &v) == B_OK)
+        item->SetMarked(voice == v);
+    }
+  }
+
+  BString speed = _ReadConfigString("tts_speed", "160");
+  BMenu* sMenu = fSpeedField->Menu();
+  for (int32 i = 0; i < sMenu->CountItems(); i++) {
+    BMenuItem* item = sMenu->ItemAt(i);
+    if (item) {
+      const char* s;
+      if (item->Message()->FindString("speed", &s) == B_OK)
+        item->SetMarked(speed == s);
+    }
+  }
 }
 
 
@@ -500,12 +613,36 @@ MoeSettingsWindow::MessageReceived(BMessage* msg)
 
     case kMsgBrowseMascot:
     {
-      BFilePanel* panel = new BFilePanel(B_OPEN_PANEL,
-        new BMessenger(be_app), NULL,
-        B_FILE_NODE, false, NULL, NULL, true, true);
-      panel->SetPanelDirectory("/boot/home");
-      panel->Window()->SetTitle(B_TRANSLATE("Choose mascot image"));
-      panel->Show();
+      static BFilePanel* sPanel = NULL;
+      if (!sPanel) {
+        sPanel = new BFilePanel(B_OPEN_PANEL,
+          new BMessenger(be_app), NULL,
+          B_FILE_NODE, false, NULL, NULL, true, true);
+        sPanel->Window()->SetTitle(B_TRANSLATE("Choose mascot image"));
+      }
+      sPanel->SetPanelDirectory("/boot/home");
+      sPanel->Show();
+      break;
+    }
+
+    case kMsgTtsToggle:
+      _WriteConfigFile("tts_enabled",
+        fTtsEnabledCheck->Value() ? "1" : "0");
+      break;
+
+    case kMsgVoiceSelect:
+    {
+      const char* voice;
+      if (msg->FindString("voice", &voice) == B_OK)
+        _WriteConfigFile("tts_voice", voice);
+      break;
+    }
+
+    case kMsgSpeedSelect:
+    {
+      const char* speed;
+      if (msg->FindString("speed", &speed) == B_OK)
+        _WriteConfigFile("tts_speed", speed);
       break;
     }
 
