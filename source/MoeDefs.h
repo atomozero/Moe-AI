@@ -85,6 +85,7 @@ enum
   MOE_CHAT_SET_API_KEY            = 'Mcak',
   MOE_CHAT_BUBBLE_OPEN            = 'Mcbo',
   MOE_SETTINGS_OPEN               = 'Msto',
+  MOE_MASCOT_REPLACE              = 'Mmrp',
   MOE_SETTINGS_SAVE               = 'Mssv',
 };
 

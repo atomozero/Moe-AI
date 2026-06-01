@@ -187,8 +187,14 @@ MoeSettingsWindow::MoeSettingsWindow(void)
     BEntry appEntry(&appInfo.ref);
     BPath appPath;
     appEntry.GetPath(&appPath);
-    appPath.GetParent(&appPath);
-    appPath.GetParent(&appPath);  // go up from source/objects/ to project root
+    appPath.GetParent(&appPath);  // up from objects.xxx/
+    appPath.GetParent(&appPath);  // up from source/
+    // If still inside objects dir, go up once more
+    BPath testPath(appPath);
+    testPath.Append("mascots");
+    BDirectory testDir(testPath.Path());
+    if (testDir.InitCheck() != B_OK)
+      appPath.GetParent(&appPath);
     BPath mascotsPath(appPath);
     mascotsPath.Append("mascots");
 
@@ -659,9 +665,9 @@ MoeSettingsWindow::MessageReceived(BMessage* msg)
     {
       entry_ref ref;
       if (msg->FindRef("refs", &ref) == B_OK) {
-        BMessage refsMsg(B_REFS_RECEIVED);
-        refsMsg.AddRef("refs", &ref);
-        be_app->PostMessage(&refsMsg);
+        BMessage replaceMsg(MOE_MASCOT_REPLACE);
+        replaceMsg.AddRef("refs", &ref);
+        be_app->PostMessage(&replaceMsg);
       }
       break;
     }

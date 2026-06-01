@@ -302,6 +302,19 @@ MoeApplication::MessageReceived(BMessage *msg)
       BApplication::MessageReceived(msg);
       break;
 
+    case MOE_MASCOT_REPLACE:
+      {
+	entry_ref ref;
+	if (msg->FindRef("refs", &ref) == B_OK) {
+	  // Close all existing mascots
+	  while (mMascotManager.CountMascots() > 0)
+	    mMascotManager.Close(mMascotManager.MascotAt(0));
+	  // Open new one
+	  mMascotManager.Open(ref);
+	}
+	break;
+      }
+
     case MOE_CHAT_BUBBLE_OPEN:
       {
 	BRect mascotFrame;
