@@ -228,6 +228,10 @@ get_active_window(void)
   if (MoeProperty::Property()->IsIgnoreApp(sAppInfo.signature))
     return NULL;
 
+  // Ignore our own app (e.g. bubble chat window taking focus)
+  if (strcmp(sAppInfo.signature, MOE_APP_SIGNATURE) == 0)
+    return NULL;
+
   winInfo = NULL;
   tokens = ::get_token_list(sAppInfo.team, &count);
 
@@ -359,7 +363,17 @@ MoeActiveWindowWatcher::TaskLoop(void)
 	  win = ::get_active_window();
 
 	  if (! win)
-	    break;
+	    {
+	      // If Moe itself is active (e.g. chat bubble),
+	      // keep the mascot on the previous window
+	      be_roster->GetActiveAppInfo(&sAppInfo);
+	      if (strcmp(sAppInfo.signature, MOE_APP_SIGNATURE) == 0)
+		{
+		  ::snooze(MoeProperty::Property()->GetPollingInterval());
+		  continue;
+		}
+	      break;
+	    }
 
 	  if (win->id != active_win->id)
 	    {

@@ -210,59 +210,6 @@ MoeMascotMenu::InitItems(MoeMascot *target, bool advanced)
 
   this->AddSeparatorItem();
 
-  // add redraw interval setting menu.
-  menu = new BMenu(B_TRANSLATE("Wink"));
-  for (i = 0; i < 5; i++)
-    {
-      BString text;
-	  static BStringFormat format(B_TRANSLATE("{0, plural,"
-		"one{# second}"
-		"other{# seconds}}"));
-	  format.Format(text, i + 1);
-      interval = (i + 1) * 1000000;
-      msg = new BMessage(MOE_SET_WINK_INTERVAL);
-      msg->AddInt64("data", interval);
-      item = new BMenuItem(text.String(), msg);
-      item->SetMarked(property->GetWinkInterval() == interval);
-      item->SetTarget(property);
-      menu->AddItem(item);
-    }
-  item = new BMenuItem(menu);
-  this->AddItem(item);
-
-  menu = new BMenu(B_TRANSLATE("Polling"));
-  for (i = 0, interval = MOE_FASTEST_POLLING_INTERVAL;
-       i < 5;
-       i++, interval *= 2)
-    {
-      msg = new BMessage(MOE_SET_POLLING_INTERVAL);
-      msg->AddInt64("data", interval);
-      item = new BMenuItem(sSpeed[i], msg);
-      item->SetMarked(property->GetPollingInterval() == interval);
-      item->SetTarget(property);
-      menu->AddItem(item);
-    }
-  item = new BMenuItem(menu);
-  this->AddItem(item);
-
-  menu = new BMenu(B_TRANSLATE("Redraw"));
-  for (i = 0, interval = MOE_FASTEST_POLLING_INTERVAL * 2;
-       i < 5;
-       i++, interval *= 2)
-    {
-      msg = new BMessage(MOE_SET_REDRAW_INTERVAL);
-      msg->AddInt64("data", interval);
-      item = new BMenuItem(sSpeed[i], msg);
-      item->SetMarked(property->GetRedrawInterval() == interval);
-      item->SetEnabled(property->GetPollingInterval() * 2 <= interval);
-      item->SetTarget(property);
-      menu->AddItem(item);
-    }
-  item = new BMenuItem(menu);
-  this->AddItem(item);
-
-  this->AddSeparatorItem();
-
   // add ignore app items.
   msg = new BMessage(MOE_ADD_IGNORE_APP_REQUESTED);
   watcher->Lock();
@@ -316,6 +263,15 @@ MoeMascotMenu::InitItems(MoeMascot *target, bool advanced)
 
       this->AddSeparatorItem();
     }
+
+  // add settings item.
+  msg = new BMessage(MOE_SETTINGS_OPEN);
+  msg->AddRect("mascot_frame", target->Frame());
+  item = new BMenuItem(B_TRANSLATE("Settings" B_UTF8_ELLIPSIS), msg);
+  item->SetTarget(be_app);
+  this->AddItem(item);
+
+  this->AddSeparatorItem();
 
   // add close item.
   msg = new BMessage(MOE_MASCOT_QUIT_REQUESTED);

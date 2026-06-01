@@ -44,6 +44,10 @@
 #include "MoeProperty.h"
 #include "MoeAppUtils.h"
 #include "MoeActiveWindowWatcher.h"
+#include "MoeBubbleWindow.h"
+#include "MoeChatWindow.h"
+#include "MoeClaudeClient.h"
+#include "MoeSettingsWindow.h"
 
 #undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "Command line strings"
@@ -249,27 +253,31 @@ MoeApplication::AboutRequested(void)
 {
   BAboutWindow* about = new BAboutWindow(B_TRANSLATE_SYSTEM_NAME("Moe"),
   	MOE_APP_SIGNATURE);
-  const char* authors [] = { /* From documentation files */
-  	B_TRANSLATE("Okada Jun (programming)"),
+  const char* authors [] = {
+  	B_TRANSLATE("Okada Jun (original programming)"),
   	B_TRANSLATE("Yu-Ki (illustration)"),
   	"Cafeina",
+  	B_TRANSLATE("atomozero (AI chat integration)"),
   	NULL
   };
   const char* extraCopyrights [] = {
   	"2021 Cafeina",
+  	"2026 atomozero",
   	NULL
   };
-  const char* thanks [] = { /* From documentation files */
+  const char* thanks [] = {
   	"Toyoshima",
   	"Yu-Ki",
   	NULL
   };
-  
+
   about->AddCopyright(2001, "Okada Jun", extraCopyrights);
   about->AddAuthors(authors);
   about->AddSpecialThanks(thanks);
-  about->AddExtraInfo(B_TRANSLATE("Project Be Moe.")); /* From resource file */
-  about->AddDescription(B_TRANSLATE("Moe is a program to place a cute mascot on the active window.\n")); /* From resource file */
+  about->AddExtraInfo(B_TRANSLATE("Moe - AI Desktop Mascot for Haiku"));
+  about->AddDescription(B_TRANSLATE(
+  	"Moe is a desktop mascot that sits on your active window.\n"
+  	"Double-click to chat with Moe, powered by Claude AI.\n"));
   about->Show();
 }
 
@@ -294,6 +302,37 @@ MoeApplication::MessageReceived(BMessage *msg)
     default:
       BApplication::MessageReceived(msg);
       break;
+
+    case MOE_CHAT_OPEN:
+      {
+	MoeChatWindow* chatWin = MoeChatWindow::Window();
+	if (chatWin->IsHidden())
+	  chatWin->Show();
+	chatWin->Activate();
+	break;
+      }
+
+    case MOE_CHAT_BUBBLE_OPEN:
+      {
+	BRect mascotFrame;
+	if (msg->FindRect("mascot_frame", &mascotFrame) == B_OK)
+	  MoeBubbleWindow::Window()->ShowNear(mascotFrame);
+	break;
+      }
+
+    case MOE_SETTINGS_OPEN:
+      {
+	BRect mascotFrame;
+	MoeSettingsWindow* settingsWin = MoeSettingsWindow::Window();
+	if (msg->FindRect("mascot_frame", &mascotFrame) == B_OK)
+	  settingsWin->ShowNear(mascotFrame);
+	else {
+	  if (settingsWin->IsHidden())
+	    settingsWin->Show();
+	  settingsWin->Activate();
+	}
+	break;
+      }
 
     case MOE_MASCOT_REOPEN_REQUESTED:
       {

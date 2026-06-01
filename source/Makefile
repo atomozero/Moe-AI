@@ -46,6 +46,11 @@ SRCS=	MoeForwardFilter.cpp \
 	MoeMascot.cpp \
 	MoeMascotManager.cpp \
 	MoeAppUtils.cpp \
+	MoeJsonHelper.cpp \
+	MoeBubbleWindow.cpp \
+	MoeChatWindow.cpp \
+	MoeClaudeClient.cpp \
+	MoeSettingsWindow.cpp \
 	MoeApplication.cpp
 
 #	specify the resource files to use
@@ -67,7 +72,7 @@ RDEFS= Moe.rdef
 #		naming scheme you need to specify the path to the library
 #		and it's name
 #		library: my_lib.a entry: my_lib.a or path/my_lib.a
-LIBS= be translation z localestub $(STDCPPLIBS)
+LIBS= be tracker translation z localestub shared network bnetapi netservices2 $(STDCPPLIBS)
 
 #	specify additional paths to directories following the standard
 #	libXXX.so or libXXX.a naming scheme.  You can specify full paths
@@ -80,7 +85,9 @@ LIBPATHS=
 #	additional paths to look for system headers
 #	thes use the form: #include <header>
 #	source file directories are NOT auto-included here
-SYSTEM_INCLUDE_PATHS = /system/develop/headers/private/interface
+SYSTEM_INCLUDE_PATHS = /system/develop/headers/private/interface \
+	/system/develop/headers/private/netservices2 \
+	/system/develop/headers/private/shared
 
 #	additional paths to look for local headers
 #	thes use the form: #include "header"

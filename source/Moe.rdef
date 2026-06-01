@@ -1,16 +1,16 @@
 resource app_signature "application/x-vnd.Kamnagi.Moe";
 
 resource app_version {
-	major  = 1,
-	middle = 1,
-	minor  = 2,
+	major  = 2,
+	middle = 0,
+	minor  = 0,
 
-	variety = B_APPV_GOLDEN_MASTER,
-	internal = 0,
+	variety = B_APPV_BETA,
+	internal = 1,
 
-	short_info = "Project Be Moe.",
-	long_info = 
-		"Moe is a program to place a cute mascot on the active window.\n"
+	short_info = "Moe - AI Desktop Mascot",
+	long_info =
+		"Moe is a desktop mascot for Haiku with AI chat powered by Claude.\n"
 };
 
 resource file_types message {

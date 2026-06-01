@@ -75,6 +75,18 @@ enum
   MOE_REMOVE_IGNORE_APP_REQUESTED = 'Mrir',
   MOE_WINK                        = 'Mwnk',
   MOE_WINK_DONE                   = 'Mwkd',
+
+  MOE_CHAT_OPEN                   = 'Mcho',
+  MOE_CHAT_SEND                   = 'Mcsd',
+  MOE_CHAT_RESPONSE               = 'Mcrs',
+  MOE_CHAT_ERROR                  = 'Mcer',
+  MOE_CHAT_CLEAR                  = 'Mccl',
+  MOE_CHAT_TOOL_PROGRESS          = 'Mctp',
+  MOE_CLAUDE_REQUEST              = 'Mcrq',
+  MOE_CHAT_SET_API_KEY            = 'Mcak',
+  MOE_CHAT_BUBBLE_OPEN            = 'Mcbo',
+  MOE_SETTINGS_OPEN               = 'Msto',
+  MOE_SETTINGS_SAVE               = 'Mssv',
 };
 
 
