@@ -187,13 +187,9 @@ MoeBubbleWindow::ShowNear(BRect mascotFrame)
   BRect screen = BScreen().Frame();
 
   float mascotCX = mascotFrame.left + mascotFrame.Width() / 2;
-  float mascotCY = mascotFrame.top + mascotFrame.Height() / 2;
 
-  // How much space in each direction?
   float spaceAbove = mascotFrame.top - screen.top;
   float spaceBelow = screen.bottom - mascotFrame.bottom;
-  float spaceLeft  = mascotFrame.left - screen.left;
-  float spaceRight = screen.right - mascotFrame.right;
 
   float x, y;
   bool tailOnBottom;
