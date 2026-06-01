@@ -172,29 +172,19 @@ MoeClaudeClient::ReloadSettings(void)
 bool
 MoeClaudeClient::_PromptForApiKey(void)
 {
-  BAlert* alert = new BAlert(
-    B_TRANSLATE("API Key Required"),
-    B_TRANSLATE("Please enter your Claude API key.\n"
-                "Get one at console.anthropic.com"),
-    B_TRANSLATE("Cancel"), B_TRANSLATE("OK"),
-    NULL, B_WIDTH_AS_USUAL, B_INFO_ALERT);
-
-  // Unfortunately BAlert doesn't support text input natively.
-  // We'll use a simpler approach: check if the file exists.
-  // If not, tell user to create it manually.
   BString msg;
   msg << B_TRANSLATE("Claude API key not found.\n\n"
          "Please create the file:\n")
       << MOE_CONFIG_DIRECTORY << "claude_api_key\n\n"
-      << B_TRANSLATE("and paste your API key in it.");
+      << B_TRANSLATE("and paste your API key in it.\n"
+         "Or use Settings to configure it.");
 
-  BAlert* infoAlert = new BAlert(
+  // BAlert::Go() with no invoker is synchronous and deletes the alert
+  (new BAlert(
     B_TRANSLATE("API Key Required"),
     msg.String(),
     B_TRANSLATE("OK"),
-    NULL, NULL, B_WIDTH_AS_USUAL, B_WARNING_ALERT);
-  delete alert;  // discard the first one
-  infoAlert->Go();
+    NULL, NULL, B_WIDTH_AS_USUAL, B_WARNING_ALERT))->Go();
 
   // Try loading again in case user created it
   _LoadApiKey();
