@@ -475,6 +475,10 @@ _SpeakText(const char* text, const char* lang)
       }
     }
 
+    // Cleanup temp files after playback
+    script << "rm -f /tmp/moe_tts_*.txt /tmp/moe_tts_*.wav "
+              "/tmp/moe_tts_speak.sh 2>/dev/null\n";
+
     BFile scriptFile("/tmp/moe_tts_speak.sh",
                      B_WRITE_ONLY | B_CREATE_FILE | B_ERASE_FILE);
     if (scriptFile.InitCheck() == B_OK)
