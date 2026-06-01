@@ -48,7 +48,6 @@ SRCS=	MoeForwardFilter.cpp \
 	MoeAppUtils.cpp \
 	MoeJsonHelper.cpp \
 	MoeBubbleWindow.cpp \
-	MoeChatWindow.cpp \
 	MoeClaudeClient.cpp \
 	MoeSettingsWindow.cpp \
 	MoeApplication.cpp

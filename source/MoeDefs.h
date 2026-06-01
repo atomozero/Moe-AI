@@ -76,7 +76,6 @@ enum
   MOE_WINK                        = 'Mwnk',
   MOE_WINK_DONE                   = 'Mwkd',
 
-  MOE_CHAT_OPEN                   = 'Mcho',
   MOE_CHAT_SEND                   = 'Mcsd',
   MOE_CHAT_RESPONSE               = 'Mcrs',
   MOE_CHAT_ERROR                  = 'Mcer',

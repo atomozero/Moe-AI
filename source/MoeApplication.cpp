@@ -45,7 +45,6 @@
 #include "MoeAppUtils.h"
 #include "MoeActiveWindowWatcher.h"
 #include "MoeBubbleWindow.h"
-#include "MoeChatWindow.h"
 #include "MoeClaudeClient.h"
 #include "MoeSettingsWindow.h"
 
@@ -302,15 +301,6 @@ MoeApplication::MessageReceived(BMessage *msg)
     default:
       BApplication::MessageReceived(msg);
       break;
-
-    case MOE_CHAT_OPEN:
-      {
-	MoeChatWindow* chatWin = MoeChatWindow::Window();
-	if (chatWin->IsHidden())
-	  chatWin->Show();
-	chatWin->Activate();
-	break;
-      }
 
     case MOE_CHAT_BUBBLE_OPEN:
       {
