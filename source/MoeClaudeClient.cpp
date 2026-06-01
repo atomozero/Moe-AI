@@ -261,7 +261,8 @@ MoeClaudeClient::MessageReceived(BMessage* msg)
       if (response.Length() == 0) {
         BMessage errMsg(MOE_CHAT_ERROR);
         errMsg.AddString("error",
-          B_TRANSLATE("Failed to connect to Claude API."));
+          B_TRANSLATE("Could not reach Claude API. "
+                      "Check your internet connection and API key."));
         replyTo.SendMessage(&errMsg);
         break;
       }
