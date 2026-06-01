@@ -70,6 +70,7 @@ static const char* kSpeedLabels[] = {
 MoeSettingsWindow*
 MoeSettingsWindow::Window(void)
 {
+  // Called from app thread only (via MOE_SETTINGS_OPEN handler)
   if (!sSettingsWindow)
     sSettingsWindow = new MoeSettingsWindow();
   return sSettingsWindow;

@@ -121,6 +121,7 @@ public:
 MoeBubbleWindow*
 MoeBubbleWindow::Window(void)
 {
+  // Called from app thread only (via MOE_CHAT_BUBBLE_OPEN handler)
   if (!sBubbleWindow)
     sBubbleWindow = new MoeBubbleWindow();
   return sBubbleWindow;
