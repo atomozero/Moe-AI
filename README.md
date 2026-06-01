@@ -2,6 +2,8 @@
 
 AI-powered desktop mascot for Haiku OS. Chat with Claude, control your system, hear responses spoken aloud.
 
+Fork of [Moe](https://github.com/HaikuArchives/Moe), a classic BeOS window sitter originally created by Okada Jun in 2001. Moe-AI extends it with AI chat, text-to-speech, and system control capabilities.
+
 ![Moe-AI Screenshot](documentation/img/sc1.png)
 
 ## Features
