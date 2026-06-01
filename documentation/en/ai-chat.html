@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Moe AI Chat</title>
+</head>
+<body bgcolor="white" text="black">
+
+<div align="right">
+<h1><font color="orange">AI Chat</font></h1>
+</div>
+
+<h2>Overview</h2>
+<p>
+Moe 2.0 includes an AI chat assistant powered by Claude.
+Double-click the mascot to open a speech bubble where you can
+chat with Moe. Moe can answer questions, help with tasks, and
+control your Haiku system using available tools.
+</p>
+
+<h2>Getting Started</h2>
+<ol>
+<li>Get a Claude API key from <b>console.anthropic.com</b></li>
+<li>Right-click the mascot &rarr; <b>Settings</b> &rarr; <b>AI</b> tab</li>
+<li>Paste your API key and click <b>Save</b></li>
+<li>Double-click the mascot to start chatting</li>
+</ol>
+
+<h2>Speech Bubble</h2>
+<p>
+The chat bubble appears near the mascot and positions itself
+automatically based on available screen space. It shows the
+conversation history with colored text:
+</p>
+<ul>
+<li><font color="blue"><b>Blue</b></font> - your messages</li>
+<li><font color="green">Green</font> - Moe's responses</li>
+<li><font color="red"><b>Red</b></font> - errors</li>
+<li><font color="#785000">Brown</font> - tool usage</li>
+</ul>
+<p>
+The bubble hides automatically after 30 seconds of inactivity,
+on workspace change, or when you press Escape.
+</p>
+
+<h2>Voice (Text-to-Speech)</h2>
+<p>
+Moe can read responses aloud. Go to <b>Settings</b> &rarr; <b>Voice</b> tab:
+</p>
+<ul>
+<li><b>Read responses aloud</b> - enable/disable TTS</li>
+<li><b>Voice</b> - choose between espeak (fast, robotic) or
+    Piper neural voices (natural, slower)</li>
+<li><b>Speed</b> - adjust speech rate</li>
+</ul>
+<p>
+Piper voices require the <tt>pipertts</tt> package and voice models
+installed in <tt>~/config/non-packaged/data/pipertts/models/</tt>.
+Language is detected automatically from the response.
+</p>
+
+<h2>Tool Integration</h2>
+<p>
+When a Pippo MCP server is running at the configured URL
+(default: <tt>http://127.0.0.1:2607/mcp</tt>), Moe can use
+system tools to control Haiku on your behalf. For example:
+</p>
+<ul>
+<li>List and launch applications</li>
+<li>Read and write files</li>
+<li>Control windows and UI elements</li>
+<li>Query system information</li>
+</ul>
+
+<h2>Settings</h2>
+<p>
+Right-click the mascot &rarr; <b>Settings</b> to configure:
+</p>
+<h3>AI Tab</h3>
+<ul>
+<li><b>API Key</b> - your Claude API key (stored locally)</li>
+<li><b>Model</b> - Claude Sonnet 4, Opus 4, or Haiku 3.5</li>
+<li><b>MCP URL</b> - Pippo MCP server address</li>
+<li><b>System prompt</b> - customize Moe's personality</li>
+</ul>
+<h3>Mascot Tab</h3>
+<ul>
+<li><b>Change mascot</b> - select a different mascot image</li>
+<li><b>Wink/Polling/Redraw</b> - animation timing settings</li>
+<li><b>Debug frame</b> - show mascot window boundaries</li>
+</ul>
+<h3>Voice Tab</h3>
+<ul>
+<li><b>Read responses aloud</b> - enable TTS</li>
+<li><b>Voice</b> - espeak or Piper neural voices</li>
+<li><b>Speed</b> - speech rate</li>
+</ul>
+
+<h2>Conversation Memory</h2>
+<p>
+Moe remembers your conversation history across sessions.
+The history is saved in
+<tt>~/config/settings/Kamnagi/Moe/chat_history</tt>
+and loaded automatically on startup (up to 20 message pairs).
+</p>
+<p>
+Moe is also aware of which application and window you are
+currently using, allowing for contextual responses.
+</p>
+
+</body>
+</html>
