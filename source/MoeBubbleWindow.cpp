@@ -5,13 +5,18 @@
 //
 
 
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <Application.h>
+#include <Directory.h>
+#include <File.h>
 #include <Button.h>
 #include <Font.h>
 #include <GroupLayout.h>
 #include <LayoutBuilder.h>
 #include <Message.h>
+#include <MessageRunner.h>
 #include <Region.h>
 #include <Screen.h>
 #include <ScrollView.h>
@@ -30,6 +35,9 @@
 
 
 static MoeBubbleWindow* sBubbleWindow = NULL;
+
+static const uint32 kMsgAutoHide = 'MaHd';
+static const bigtime_t kAutoHideDelay = 10000000; // 10 seconds
 
 static const float kBubbleWidth = 300;
 static const float kBubbleHeight = 200;
@@ -128,7 +136,8 @@ MoeBubbleWindow::MoeBubbleWindow(void)
             | B_NOT_RESIZABLE
             | B_CLOSE_ON_ESCAPE
             | B_WILL_ACCEPT_FIRST_CLICK),
-    fBusy(false)
+    fBusy(false),
+    fAutoHideTimer(NULL)
 {
   BubbleView* bg = new BubbleView();
   fBubbleView = bg;
@@ -146,15 +155,10 @@ MoeBubbleWindow::MoeBubbleWindow(void)
 
   fScrollView = new BScrollView("scroll", fResponseView,
                                 B_WILL_DRAW | B_FRAME_EVENTS,
-                                false, true);
+                                false, false);
 
   fInput = new BTextControl("input", NULL, "",
                             new BMessage(MOE_CHAT_SEND));
-
-  fExpandButton = new BButton("clear",
-                              "\xc3\x97",  // × UTF-8
-                              new BMessage(MOE_CHAT_CLEAR));
-  fExpandButton->SetToolTip(B_TRANSLATE("Clear conversation"));
 
   // Build layout inside the bubble view
   float inset = kPadding + kCornerRadius / 2;
@@ -162,10 +166,7 @@ MoeBubbleWindow::MoeBubbleWindow(void)
   BLayoutBuilder::Group<>((BGroupLayout*)bg->GetLayout())
     .SetInsets(inset, inset, inset, kTailHeight + kPadding)
     .Add(fScrollView, 10)
-    .AddGroup(B_HORIZONTAL, 2)
-      .Add(fInput, 10)
-      .Add(fExpandButton, 0)
-    .End();
+    .Add(fInput);
 
   // Add the bubble view to the window
   AddChild(bg);
@@ -261,14 +262,268 @@ MoeBubbleWindow::_AppendStyled(const char* text, rgb_color color, bool bold)
 }
 
 
+static BString
+_ReadConfig(const char* filename, const char* defaultVal)
+{
+  BString path(MOE_CONFIG_DIRECTORY);
+  path << filename;
+  BFile file(path.String(), B_READ_ONLY);
+  if (file.InitCheck() != B_OK)
+    return BString(defaultVal);
+  off_t size;
+  file.GetSize(&size);
+  if (size <= 0 || size > 4096)
+    return BString(defaultVal);
+  BString result;
+  char* buf = result.LockBuffer(size + 1);
+  file.Read(buf, size);
+  buf[size] = '\0';
+  result.UnlockBuffer(size);
+  result.Trim();
+  return result.Length() > 0 ? result : BString(defaultVal);
+}
+
+
+static void
+_UpdateTtsConfig(const char* voice, const char* speed)
+{
+  BString configPath;
+  configPath << "/boot/home/config/non-packaged/data/pipertts/models/"
+             << voice << "/it_config.txt";
+
+  BFile configFile(configPath.String(), B_READ_ONLY);
+  if (configFile.InitCheck() != B_OK)
+    return;
+
+  off_t size;
+  configFile.GetSize(&size);
+  if (size <= 0 || size > 2048)
+    return;
+
+  char* buf = new char[size + 1];
+  configFile.Read(buf, size);
+  buf[size] = '\0';
+  BString config(buf);
+  delete[] buf;
+  configFile.Unset();
+
+  // Replace length_scale line
+  BString newConfig;
+  int32 pos = 0;
+  while (pos < config.Length()) {
+    int32 eol = config.FindFirst("\n", pos);
+    if (eol < 0) eol = config.Length();
+
+    BString line;
+    config.CopyInto(line, pos, eol - pos);
+
+    if (line.FindFirst("\"length_scale\"") >= 0) {
+      newConfig << "\"length_scale\"=" << speed << "f\n";
+    } else {
+      newConfig << line << "\n";
+    }
+    pos = eol + 1;
+  }
+
+  BFile writeFile(configPath.String(), B_WRITE_ONLY | B_ERASE_FILE);
+  if (writeFile.InitCheck() == B_OK)
+    writeFile.Write(newConfig.String(), newConfig.Length());
+}
+
+
+static BString sLastVoice;
+static BString sLastSpeed;
+
+static void
+_SpeakText(const char* text, const char* lang)
+{
+  BString enabled = _ReadConfig("tts_enabled", "0");
+  if (enabled != "1")
+    return;
+
+  BString voice = _ReadConfig("tts_voice", "espeak");
+  BString speed = _ReadConfig("tts_speed", "160");
+
+  // Sanitize voice and speed: whitelist safe characters only
+  for (int32 i = voice.Length() - 1; i >= 0; i--) {
+    char c = voice[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+        || (c >= '0' && c <= '9') || c == '-' || c == '_'))
+      voice.Remove(i, 1);
+  }
+  for (int32 i = speed.Length() - 1; i >= 0; i--) {
+    char c = speed[i];
+    if (!(c >= '0' && c <= '9') && c != '.')
+      speed.Remove(i, 1);
+  }
+  if (voice.Length() == 0) voice = "espeak";
+  if (speed.Length() == 0) speed = "160";
+
+  // Kill any ongoing TTS playback
+  system("pkill -f moe_tts_speak 2>/dev/null; pkill pipertts 2>/dev/null; pkill espeak 2>/dev/null");
+
+  // Write text to temp file
+  BFile tmpFile("/tmp/moe_tts_text.txt",
+                B_WRITE_ONLY | B_CREATE_FILE | B_ERASE_FILE);
+  if (tmpFile.InitCheck() == B_OK)
+    tmpFile.Write(text, strlen(text));
+  tmpFile.Unset();
+
+  BString cmd;
+
+  if (voice == "espeak") {
+    // espeak: instant playback
+    BString espeakLang(lang && lang[0] ? lang : "it");
+    cmd << "espeak -v " << espeakLang
+        << " -s " << speed
+        << " -p 50"
+        << " -f /tmp/moe_tts_text.txt &";
+  } else {
+    // Piper TTS with instant filler hack:
+    // 1. Play a random pre-cached filler WAV instantly
+    // 2. Generate real audio in background
+    // 3. Play real audio when ready
+
+    // Update piper config if settings changed
+    if (voice != sLastVoice || speed != sLastSpeed) {
+      float lengthScale = 0.8;
+      int speedInt = atoi(speed.String());
+      if (speedInt <= 130) lengthScale = 1.0;
+      else if (speedInt <= 160) lengthScale = 0.8;
+      else if (speedInt <= 190) lengthScale = 0.7;
+      else lengthScale = 0.6;
+      BString scaleStr;
+      scaleStr.SetToFormat("%.1f", lengthScale);
+      _UpdateTtsConfig(voice.String(), scaleStr.String());
+      sLastVoice = voice;
+      sLastSpeed = speed;
+    }
+
+    // Split text into sentences
+    BString fullText(text);
+    int32 tpos = 0;
+    int32 sentNum = 0;
+
+    while (tpos < fullText.Length()) {
+      int32 end = -1;
+      const char* delims[] = { ". ", "! ", "? ", ".\n", "!\n", "?\n" };
+      for (int d = 0; d < 6; d++) {
+        int32 found = fullText.FindFirst(delims[d], tpos);
+        if (found >= 0 && (end < 0 || found < end))
+          end = found;
+      }
+      BString sentence;
+      if (end >= 0) {
+        fullText.CopyInto(sentence, tpos, end - tpos + 1);
+        tpos = end + 2;
+      } else {
+        fullText.CopyInto(sentence, tpos, fullText.Length() - tpos);
+        tpos = fullText.Length();
+      }
+      sentence.Trim();
+      if (sentence.Length() == 0) continue;
+
+      BString tmpPath;
+      tmpPath << "/tmp/moe_tts_" << sentNum << ".txt";
+      BFile stFile(tmpPath.String(),
+                   B_WRITE_ONLY | B_CREATE_FILE | B_ERASE_FILE);
+      if (stFile.InitCheck() == B_OK)
+        stFile.Write(sentence.String(), sentence.Length());
+      stFile.Unset();
+      sentNum++;
+    }
+
+    BString piperCmd;
+    piperCmd << "pipertts -m " << voice;
+    if (lang && lang[0])
+      piperCmd << " -l " << lang;
+
+    // Build fully pipelined script:
+    // - Start generating sentence 0 WAV immediately in background
+    // - Play filler while waiting
+    // - Then for each sentence: play it while generating the next
+    BString script("#!/bin/sh\n");
+    int fillerNum = rand() % 6;
+
+    if (sentNum > 0) {
+      // Start generating first sentence immediately (parallel with filler)
+      script << piperCmd << " -f /tmp/moe_tts_0.txt"
+             << " -o /tmp/moe_tts_0.wav &\n";
+      script << "GEN_PID=$!\n";
+
+      // Play filler while sentence 0 generates
+      script << "ffplay -nodisp -autoexit "
+             << MOE_CONFIG_DIRECTORY << "tts_cache/filler_"
+             << fillerNum << ".wav 2>/dev/null\n";
+
+      // Wait for sentence 0 to finish generating
+      script << "wait $GEN_PID\n";
+
+      // For each sentence: play current, generate next in parallel
+      for (int32 i = 0; i < sentNum; i++) {
+        if (i < sentNum - 1) {
+          // Start generating next sentence in background
+          script << piperCmd << " -f /tmp/moe_tts_" << (i + 1)
+                 << ".txt -o /tmp/moe_tts_" << (i + 1) << ".wav &\n";
+          script << "GEN_PID=$!\n";
+        }
+        // Play current sentence
+        script << "ffplay -nodisp -autoexit /tmp/moe_tts_"
+               << i << ".wav 2>/dev/null\n";
+        if (i < sentNum - 1)
+          script << "wait $GEN_PID\n";
+      }
+    }
+
+    BFile scriptFile("/tmp/moe_tts_speak.sh",
+                     B_WRITE_ONLY | B_CREATE_FILE | B_ERASE_FILE);
+    if (scriptFile.InitCheck() == B_OK)
+      scriptFile.Write(script.String(), script.Length());
+    scriptFile.Unset();
+
+    cmd << "chmod +x /tmp/moe_tts_speak.sh && /tmp/moe_tts_speak.sh &";
+  }
+
+  system(cmd.String());
+}
+
+
 void
 MoeBubbleWindow::SetResponse(const char* text)
 {
-  // Remove the "Thinking..." line if present
+  // Check for language tag [lang:XX] at start
+  BString displayText(text);
+  BString lang("it");
+
+  if (displayText.FindFirst("[lang:") == 0) {
+    int32 end = displayText.FindFirst("]");
+    if (end > 6 && end <= 16) {
+      BString rawLang;
+      displayText.CopyInto(rawLang, 6, end - 6);
+      // Sanitize: only allow a-z, A-Z, 0-9, dash, underscore
+      BString safeLang;
+      for (int32 i = 0; i < rawLang.Length(); i++) {
+        char c = rawLang[i];
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+            || (c >= '0' && c <= '9') || c == '-' || c == '_')
+          safeLang << c;
+      }
+      if (safeLang.Length() >= 2)
+        lang = safeLang;
+      displayText.Remove(0, end + 1);
+      while (displayText.Length() > 0
+             && (displayText[0] == ' ' || displayText[0] == '\n'))
+        displayText.Remove(0, 1);
+    }
+  }
+
   rgb_color moeColor = {0, 100, 60, 255};
   BString msg;
-  msg << "Moe: " << text << "\n";
+  msg << "Moe: " << displayText << "\n";
   _AppendStyled(msg.String(), moeColor, false);
+
+  // Speak the response
+  _SpeakText(displayText.String(), lang.String());
 }
 
 
@@ -298,8 +553,11 @@ MoeBubbleWindow::SetBusy(bool busy)
   fBusy = busy;
   fInput->SetEnabled(!busy);
   if (busy) {
+    _StopAutoHideTimer();
     rgb_color gray = {150, 150, 150, 255};
     _AppendStyled(B_TRANSLATE("Thinking" B_UTF8_ELLIPSIS "\n"), gray, false);
+  } else {
+    _ResetAutoHideTimer();
   }
 }
 
@@ -366,6 +624,13 @@ MoeBubbleWindow::MessageReceived(BMessage* msg)
       break;
     }
 
+    case kMsgAutoHide:
+    {
+      if (!fBusy && !IsHidden())
+        Hide();
+      break;
+    }
+
     default:
       BWindow::MessageReceived(msg);
       break;
@@ -376,6 +641,7 @@ MoeBubbleWindow::MessageReceived(BMessage* msg)
 bool
 MoeBubbleWindow::QuitRequested(void)
 {
+  _StopAutoHideTimer();
   Hide();
   return false;
 }
@@ -384,8 +650,12 @@ MoeBubbleWindow::QuitRequested(void)
 void
 MoeBubbleWindow::WindowActivated(bool active)
 {
-  if (active)
+  if (active) {
     fInput->MakeFocus(true);
+    _StopAutoHideTimer();
+  } else if (!fBusy) {
+    _ResetAutoHideTimer();
+  }
   BWindow::WindowActivated(active);
 }
 
@@ -396,6 +666,24 @@ MoeBubbleWindow::WorkspaceActivated(int32 workspace, bool active)
   if (!active && !IsHidden())
     Hide();
   BWindow::WorkspaceActivated(workspace, active);
+}
+
+
+void
+MoeBubbleWindow::_ResetAutoHideTimer(void)
+{
+  _StopAutoHideTimer();
+  BMessage msg(kMsgAutoHide);
+  fAutoHideTimer = new BMessageRunner(BMessenger(this),
+                                      &msg, kAutoHideDelay, 1);
+}
+
+
+void
+MoeBubbleWindow::_StopAutoHideTimer(void)
+{
+  delete fAutoHideTimer;
+  fAutoHideTimer = NULL;
 }
 
 
