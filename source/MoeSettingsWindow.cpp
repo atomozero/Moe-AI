@@ -79,7 +79,7 @@ MoeSettingsWindow::Window(void)
 
 MoeSettingsWindow::MoeSettingsWindow(void)
   : BWindow(BRect(200, 200, 700, 600),
-            B_TRANSLATE("Moe Settings"),
+            B_TRANSLATE("Moe-AI Settings"),
             B_TITLED_WINDOW_LOOK,
             B_NORMAL_WINDOW_FEEL,
             B_AUTO_UPDATE_SIZE_LIMITS

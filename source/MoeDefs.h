@@ -31,8 +31,8 @@
 #define TRACKER_APP_SIGNATURE "application/x-vnd.Be-TRAK"
 #define DESKBAR_APP_SIGNATURE "application/x-vnd.Be-TSKB"
 
-#define MOE_APP_SIGNATURE "application/x-vnd.Kamnagi.Moe"
-#define MOE_CONFIG_DIRECTORY "/boot/home/config/settings/Kamnagi/Moe/"
+#define MOE_APP_SIGNATURE "application/x-vnd.atomozero.Moe-AI"
+#define MOE_CONFIG_DIRECTORY "/boot/home/config/settings/Moe-AI/"
 #define MOE_CONFIG_FILE MOE_CONFIG_DIRECTORY "property"
 
 #define MOE_MAX_SLICE_NUM 30

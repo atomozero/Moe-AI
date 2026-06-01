@@ -1,4 +1,4 @@
-resource app_signature "application/x-vnd.Kamnagi.Moe";
+resource app_signature "application/x-vnd.atomozero.Moe-AI";
 
 resource app_version {
 	major  = 2,
@@ -8,9 +8,9 @@ resource app_version {
 	variety = B_APPV_BETA,
 	internal = 1,
 
-	short_info = "Moe - AI Desktop Mascot",
+	short_info = "Moe-AI - AI Desktop Mascot",
 	long_info =
-		"Moe is a desktop mascot for Haiku with AI chat powered by Claude.\n"
+		"Moe-AI is a desktop mascot for Haiku with AI chat powered by Claude.\n"
 };
 
 resource file_types message {

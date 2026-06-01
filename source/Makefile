@@ -6,7 +6,7 @@
 ## Application Specific Settings ---------------------------------------------
 
 # specify the name of the binary
-NAME= Moe
+NAME= Moe-AI
 
 # specify the type of binary
 #	APP:	Application
@@ -16,7 +16,7 @@ NAME= Moe
 TYPE= APP
 
 # Application's MIME signature. Required to use localization.
-APP_MIME_SIG = application/x-vnd.Kamnagi.Moe
+APP_MIME_SIG = application/x-vnd.atomozero.Moe-AI
 
 #	add support for new Pe and Eddie features
 #	to fill in generic makefile
@@ -54,7 +54,7 @@ SRCS=	MoeForwardFilter.cpp \
 
 #	specify the resource files to use
 #	full path or a relative path to the resource file can be used.
-RDEFS= Moe.rdef
+RDEFS= Moe-AI.rdef
 
 # @<-src@ 
 #%}

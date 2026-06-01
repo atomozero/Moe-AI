@@ -250,7 +250,7 @@ MoeApplication::ReadyToRun(void)
 void
 MoeApplication::AboutRequested(void)
 {
-  BAboutWindow* about = new BAboutWindow(B_TRANSLATE_SYSTEM_NAME("Moe"),
+  BAboutWindow* about = new BAboutWindow(B_TRANSLATE_SYSTEM_NAME("Moe-AI"),
   	MOE_APP_SIGNATURE);
   const char* authors [] = {
   	B_TRANSLATE("Okada Jun (original programming)"),
