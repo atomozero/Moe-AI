@@ -26,7 +26,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <fs_attr.h>
 #include <Invoker.h>
 #include <Alert.h>
@@ -472,13 +471,6 @@ MoeMascot::MouseDown(MoeWindowSlice *slice,
   // Check for double-click to open bubble chat
   int32 clicks = 0;
   slice->Looper()->CurrentMessage()->FindInt32("clicks", &clicks);
-  {
-    FILE* dbg = fopen("/tmp/moe_debug.log", "a");
-    if (dbg) {
-      fprintf(dbg, "MouseDown: clicks=%d buttons=%d\n", (int)clicks, (int)buttons);
-      fclose(dbg);
-    }
-  }
   if (clicks >= 2) {
     BRect frame = this->Frame();
     BMessage openMsg(MOE_CHAT_BUBBLE_OPEN);

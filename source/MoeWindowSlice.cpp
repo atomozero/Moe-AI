@@ -24,7 +24,6 @@
 //
 
 
-#include <cstdio>
 #include <Bitmap.h>
 #include <Message.h>
 #include <MessageQueue.h>
@@ -89,16 +88,9 @@ MoeWindowSlice::MoveTo(float x, float y)
 }
 
 
-static bool sStartupLogged = false;
-
 void
 MoeWindowSlice::Draw(BRect updateRect)
 {
-  if (!sStartupLogged) {
-    sStartupLogged = true;
-    FILE* dbg = fopen("/tmp/moe_debug.log", "a");
-    if (dbg) { fprintf(dbg, "Moe slice draw - debug build active\n"); fflush(dbg); fclose(dbg); }
-  }
   mOwner->LockBitmap();
   this->DrawBitmap(mOwner->Bitmap(), mSrcRect, this->Bounds());
   mOwner->UnlockBitmap();
@@ -114,18 +106,6 @@ MoeWindowSlice::Draw(BRect updateRect)
 void
 MoeWindowSlice::MouseDown(BPoint point)
 {
-  int32 buttons = 0, clicks = 0;
-  if (Looper() && Looper()->CurrentMessage()) {
-    Looper()->CurrentMessage()->FindInt32("buttons", &buttons);
-    Looper()->CurrentMessage()->FindInt32("clicks", &clicks);
-  }
-  FILE* dbg = fopen("/tmp/moe_debug.log", "a");
-  if (dbg) {
-    fprintf(dbg, "Slice::MouseDown buttons=0x%x clicks=%d point=%.0f,%.0f\n",
-            (unsigned)buttons, (int)clicks, point.x, point.y);
-    fflush(dbg);
-    fclose(dbg);
-  }
   mOwner->MouseDown(this, point);
 }
 
