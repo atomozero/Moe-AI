@@ -29,6 +29,7 @@
 #include <OS.h>
 #include <Catalog.h>
 #include "MoeDefs.h"
+#include "MoeActiveWindowWatcher.h"
 #include "MoeJsonHelper.h"
 #include "MoeClaudeClient.h"
 
@@ -53,7 +54,10 @@ static const char* kDefaultSystemPrompt =
   "Be concise, friendly, and helpful. When the user asks you to do something "
   "on their system, use the appropriate tool. When performing destructive actions "
   "(quitting apps, deleting files, etc.), confirm with the user first. "
-  "Respond in the same language the user writes to you.";
+  "Respond in the same language the user writes to you. "
+  "IMPORTANT: Always start your response with a language tag like [lang:it] or [lang:en] "
+  "indicating the language you are responding in (ISO 639-1 code). "
+  "This tag will be used for text-to-speech and will not be shown to the user.";
 
 
 static MoeClaudeClient* sClient = NULL;
@@ -76,10 +80,12 @@ MoeClaudeClient::MoeClaudeClient(void)
     fModel(kDefaultModel),
     fPippoUrl(kDefaultPippoUrl),
     fSystemPrompt(kDefaultSystemPrompt),
-    fToolSchemasFetchedAt(0)
+    fToolSchemasFetchedAt(0),
+    fToolLoopCount(0)
 {
   _LoadApiKey();
   _LoadSettings();
+  _LoadHistory();
 }
 
 
@@ -279,6 +285,7 @@ MoeClaudeClient::MessageReceived(BMessage* msg)
       for (int32 i = 0; i < fHistory.CountItems(); i++)
         delete (BString*)fHistory.ItemAt(i);
       fHistory.MakeEmpty();
+      _SaveHistory();
       break;
     }
 
@@ -289,13 +296,46 @@ MoeClaudeClient::MessageReceived(BMessage* msg)
 }
 
 
+static bool
+_IsTtsEnabled(void)
+{
+  BString path(MOE_CONFIG_DIRECTORY);
+  path << "tts_enabled";
+  BFile file(path.String(), B_READ_ONLY);
+  if (file.InitCheck() != B_OK)
+    return false;
+  char c = '0';
+  file.Read(&c, 1);
+  return c == '1';
+}
+
+
 BString
 MoeClaudeClient::_BuildRequestBody(const char* /*userText*/)
 {
+  BString systemPrompt(fSystemPrompt);
+
+  // Add current window context
+  MoeActiveWindowWatcher* watcher = MoeActiveWindowWatcher::Watcher();
+  watcher->Lock();
+  if (watcher->IsActive()) {
+    systemPrompt << " The user is currently using: "
+                 << watcher->CurrentAppName()
+                 << " (window: " << watcher->CurrentWin() << ").";
+  }
+  watcher->Unlock();
+
+  if (_IsTtsEnabled()) {
+    systemPrompt << " IMPORTANT: Voice mode is active. Your responses will be "
+                    "read aloud. Keep answers SHORT (1-3 sentences max). "
+                    "Be conversational and direct. No lists, no markdown, "
+                    "no code blocks.";
+  }
+
   BString body;
   body << "{\"model\":\"" << fModel << "\","
        << "\"max_tokens\":4096,"
-       << "\"system\":\"" << MoeJsonHelper::Escape(fSystemPrompt.String()) << "\",";
+       << "\"system\":\"" << MoeJsonHelper::Escape(systemPrompt.String()) << "\",";
 
   // Add tools if available
   if (fToolSchemas.Length() > 0)
@@ -528,11 +568,11 @@ MoeClaudeClient::_ProcessResponse(const BString& response, BMessenger replyTo)
     // Add tool results as user message
     _AddToHistory("user", toolResults.String());
 
-    // Re-call Claude with tool results (recursive, but limited)
-    static int32 loopCount = 0;
-    loopCount++;
+    // Re-call Claude with tool results (iterative, limited)
+    fToolLoopCount++;
+    int32 loopCount = fToolLoopCount;
     if (loopCount > kMaxToolLoopIterations) {
-      loopCount = 0;
+      fToolLoopCount = 0;
       // Extract any text content from the last response
       BString text = MoeJsonHelper::ExtractTextContent(response);
       if (text.Length() > 0) {
@@ -552,7 +592,7 @@ MoeClaudeClient::_ProcessResponse(const BString& response, BMessenger replyTo)
     BString newResponse = _CallClaudeApi(newRequest);
 
     if (newResponse.Length() == 0) {
-      loopCount = 0;
+      fToolLoopCount = 0;
       BMessage errMsg(MOE_CHAT_ERROR);
       errMsg.AddString("error",
         B_TRANSLATE("Failed to get response after tool execution."));
@@ -589,16 +629,97 @@ MoeClaudeClient::_AddToHistory(const char* role, const char* contentJson)
          << "\"content\":" << contentJson << "}";
   fHistory.AddItem(entry);
   _TrimHistory();
+  _SaveHistory();
 }
 
 
 void
 MoeClaudeClient::_TrimHistory(void)
 {
-  // Keep max kMaxHistoryPairs * 2 entries
   int32 maxItems = kMaxHistoryPairs * 2;
   while (fHistory.CountItems() > maxItems) {
     BString* old = (BString*)fHistory.RemoveItem((int32)0);
     delete old;
   }
+}
+
+
+void
+MoeClaudeClient::_SaveHistory(void)
+{
+  BString path(MOE_CONFIG_DIRECTORY);
+  path << "chat_history";
+
+  create_directory(MOE_CONFIG_DIRECTORY, 0755);
+
+  BFile file(path.String(), B_WRITE_ONLY | B_CREATE_FILE | B_ERASE_FILE);
+  if (file.InitCheck() != B_OK)
+    return;
+
+  // Write as JSON array of message objects
+  BString json("[");
+  for (int32 i = 0; i < fHistory.CountItems(); i++) {
+    if (i > 0) json << ",";
+    json << *((BString*)fHistory.ItemAt(i));
+  }
+  json << "]";
+
+  file.Write(json.String(), json.Length());
+}
+
+
+void
+MoeClaudeClient::_LoadHistory(void)
+{
+  BString path(MOE_CONFIG_DIRECTORY);
+  path << "chat_history";
+
+  BFile file(path.String(), B_READ_ONLY);
+  if (file.InitCheck() != B_OK)
+    return;
+
+  off_t size;
+  file.GetSize(&size);
+  if (size <= 2 || size > 256000)  // [] minimum, 256KB max
+    return;
+
+  char* buf = new char[size + 1];
+  file.Read(buf, size);
+  buf[size] = '\0';
+  BString json(buf);
+  delete[] buf;
+
+  // Parse the JSON array - split by top-level objects
+  // Look for {"role": patterns
+  int32 pos = 0;
+  while (pos < json.Length()) {
+    int32 start = json.FindFirst("{\"role\"", pos);
+    if (start < 0) break;
+
+    // Find matching closing brace
+    int depth = 0;
+    int32 end = start;
+    for (; end < json.Length(); end++) {
+      if (json[end] == '{') depth++;
+      else if (json[end] == '}') {
+        depth--;
+        if (depth == 0) { end++; break; }
+      } else if (json[end] == '"') {
+        // Skip string content
+        end++;
+        while (end < json.Length() && json[end] != '"') {
+          if (json[end] == '\\') end++;
+          end++;
+        }
+      }
+    }
+
+    BString entry;
+    json.CopyInto(entry, start, end - start);
+    fHistory.AddItem(new BString(entry));
+
+    pos = end;
+  }
+
+  _TrimHistory();
 }

@@ -53,6 +53,8 @@ private:
   void    _ProcessResponse(const BString& response, BMessenger replyTo);
   void    _AddToHistory(const char* role, const char* contentJson);
   void    _TrimHistory(void);
+  void    _SaveHistory(void);
+  void    _LoadHistory(void);
 
   BPrivate::Network::BHttpSession* fHttpSession;
   BList   fHistory;       // BString* entries (JSON message objects)
@@ -62,6 +64,7 @@ private:
   BString fSystemPrompt;
   BString fToolSchemas;   // cached tools array JSON
   bigtime_t fToolSchemasFetchedAt;
+  int32   fToolLoopCount;
 
   static const int32 kMaxHistoryPairs = 20;
   static const int32 kMaxToolLoopIterations = 10;
