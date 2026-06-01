@@ -83,7 +83,6 @@ MoeMascotMenu::InitItems(MoeMascot *target, bool advanced)
   MoeActiveWindowWatcher *watcher;
   entry_ref entry;
   int32 i;
-  bigtime_t interval;
   BMenu *menu;
   BMenuItem *item;
   BMessage *msg;
