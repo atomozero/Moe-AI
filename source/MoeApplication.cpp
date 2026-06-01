@@ -40,6 +40,7 @@
 #include "MoeDefs.h"
 #include "MoeUtils.h"
 #include "MoeConsole.h"
+#include "MoeMascot.h"
 #include "MoeMascotManager.h"
 #include "MoeProperty.h"
 #include "MoeAppUtils.h"
@@ -306,12 +307,28 @@ MoeApplication::MessageReceived(BMessage *msg)
       {
 	entry_ref ref;
 	if (msg->FindRef("refs", &ref) == B_OK) {
-	  // Close all existing mascots
 	  while (mMascotManager.CountMascots() > 0)
 	    mMascotManager.Close(mMascotManager.MascotAt(0));
-	  // Open new one
 	  mMascotManager.Open(ref);
 	}
+	break;
+      }
+
+    case MOE_MASCOT_TOGGLE:
+      {
+	entry_ref ref;
+	if (msg->FindRef("refs", &ref) != B_OK)
+	  break;
+
+	MoeMascot *existing = mMascotManager.FindByRef(ref);
+	if (existing) {
+	  if (mMascotManager.CountMascots() > 1)
+	    mMascotManager.Close(existing);
+	} else {
+	  mMascotManager.Open(ref);
+	}
+
+	this->PostMessage(MOE_EXAMINE_QUIT_REQUESTED);
 	break;
       }
 

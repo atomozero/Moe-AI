@@ -209,3 +209,13 @@ MoeMascotManager::Reopen(MoeMascot *mascot)
   this->Close(mascot);
   this->Open(entry);
 }
+
+
+MoeMascot *
+MoeMascotManager::FindByRef(const entry_ref &entry)
+{
+  for (int32 i = 0; i < this->CountMascots(); i++)
+    if (entry == this->MascotAt(i)->mEntry)
+      return this->MascotAt(i);
+  return NULL;
+}

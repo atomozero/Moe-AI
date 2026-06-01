@@ -665,9 +665,9 @@ MoeSettingsWindow::MessageReceived(BMessage* msg)
     {
       entry_ref ref;
       if (msg->FindRef("refs", &ref) == B_OK) {
-        BMessage replaceMsg(MOE_MASCOT_REPLACE);
-        replaceMsg.AddRef("refs", &ref);
-        be_app->PostMessage(&replaceMsg);
+        BMessage toggleMsg(MOE_MASCOT_TOGGLE);
+        toggleMsg.AddRef("refs", &ref);
+        be_app->PostMessage(&toggleMsg);
       }
       break;
     }

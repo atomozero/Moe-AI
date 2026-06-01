@@ -47,6 +47,7 @@ public:
   MoeMascot *Open(const entry_ref &entry);
   void Close(MoeMascot *mascot);
   void Reopen(MoeMascot *mascot);
+  MoeMascot *FindByRef(const entry_ref &entry);
 
 private:
   void CellReduction(void);

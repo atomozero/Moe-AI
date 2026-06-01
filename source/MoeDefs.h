@@ -86,6 +86,7 @@ enum
   MOE_CHAT_BUBBLE_OPEN            = 'Mcbo',
   MOE_SETTINGS_OPEN               = 'Msto',
   MOE_MASCOT_REPLACE              = 'Mmrp',
+  MOE_MASCOT_TOGGLE               = 'Mmtg',
   MOE_SETTINGS_SAVE               = 'Mssv',
 };
 
