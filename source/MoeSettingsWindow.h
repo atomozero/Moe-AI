@@ -51,6 +51,11 @@ private:
   BMenuField*   fPollingField;
   BMenuField*   fRedrawField;
   BCheckBox*    fDebugFrameCheck;
+
+  // Voice tab
+  BCheckBox*    fTtsEnabledCheck;
+  BMenuField*   fVoiceField;
+  BMenuField*   fSpeedField;
 };
 
 

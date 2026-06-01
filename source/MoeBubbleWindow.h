@@ -19,6 +19,7 @@ class BTextView;
 class BScrollView;
 class BTextControl;
 class BButton;
+class BMessageRunner;
 
 
 class MoeBubbleWindow : public BWindow
@@ -45,13 +46,15 @@ private:
   void _ClearResponse(void);
   void _AppendStyled(const char* text, rgb_color color, bool bold);
   void _ScrollToBottom(void);
+  void _ResetAutoHideTimer(void);
+  void _StopAutoHideTimer(void);
 
   BView*        fBubbleView;
   BTextView*    fResponseView;
   BScrollView*  fScrollView;
   BTextControl* fInput;
-  BButton*      fExpandButton;
   bool          fBusy;
+  BMessageRunner* fAutoHideTimer;
 };
 
 
