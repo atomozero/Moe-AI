@@ -6,8 +6,12 @@
 
 
 #include <cstdio>
+#include <AppFileInfo.h>
 #include <Application.h>
+#include <Entry.h>
 #include <FilePanel.h>
+#include <Path.h>
+#include <Roster.h>
 #include <Size.h>
 #include <Box.h>
 #include <Button.h>
@@ -45,6 +49,7 @@ enum {
   kMsgDrawSelect  = 'SdSl',
   kMsgDebugToggle = 'SdTg',
   kMsgBrowseMascot = 'SbMc',
+  kMsgMascotSelect = 'SmcS',
   kMsgTtsToggle    = 'StTg',
   kMsgVoiceSelect  = 'SvSl',
   kMsgSpeedSelect  = 'SsSl',
@@ -173,13 +178,51 @@ MoeSettingsWindow::MoeSettingsWindow(void)
                                    B_TRANSLATE("Debug frame visible"),
                                    new BMessage(kMsgDebugToggle));
 
-  BButton* browseMascotButton = new BButton("browse_mascot",
-    B_TRANSLATE("Change mascot" B_UTF8_ELLIPSIS),
-    new BMessage(kMsgBrowseMascot));
+  // Build mascot selection menu from mascots/ directory
+  BPopUpMenu* mascotMenu = new BPopUpMenu("");
+  {
+    // Find app directory and look for mascots/ next to it
+    app_info appInfo;
+    be_app->GetAppInfo(&appInfo);
+    BEntry appEntry(&appInfo.ref);
+    BPath appPath;
+    appEntry.GetPath(&appPath);
+    appPath.GetParent(&appPath);
+    appPath.GetParent(&appPath);  // go up from source/objects/ to project root
+    BPath mascotsPath(appPath);
+    mascotsPath.Append("mascots");
+
+    BDirectory dir(mascotsPath.Path());
+    if (dir.InitCheck() == B_OK) {
+      BEntry entry;
+      while (dir.GetNextEntry(&entry) == B_OK) {
+        BPath filePath;
+        entry.GetPath(&filePath);
+        BString name(filePath.Leaf());
+        // Only show image files
+        if (name.FindLast(".png") > 0 || name.FindLast(".jpg") > 0
+            || name.FindLast(".bmp") > 0) {
+          BMessage* msg = new BMessage(kMsgMascotSelect);
+          entry_ref ref;
+          entry.GetRef(&ref);
+          msg->AddRef("refs", &ref);
+          mascotMenu->AddItem(new BMenuItem(name.String(), msg));
+        }
+      }
+    }
+
+    // Add separator and browse option
+    if (mascotMenu->CountItems() > 0)
+      mascotMenu->AddSeparatorItem();
+    mascotMenu->AddItem(new BMenuItem(
+      B_TRANSLATE("Browse" B_UTF8_ELLIPSIS),
+      new BMessage(kMsgBrowseMascot)));
+  }
+  fMascotField = new BMenuField(B_TRANSLATE("Mascot:"), mascotMenu);
 
   BLayoutBuilder::Group<>(mascotTab, B_VERTICAL, 4)
     .SetInsets(B_USE_DEFAULT_SPACING)
-    .Add(browseMascotButton)
+    .Add(fMascotField)
     .Add(fWinkField)
     .Add(fPollingField)
     .Add(fRedrawField)
@@ -609,6 +652,17 @@ MoeSettingsWindow::MessageReceived(BMessage* msg)
       BMessage dbgMsg(MOE_SET_DEBUG_FRAME_VISIBLE);
       dbgMsg.AddBool("data", visible);
       MoeProperty::Property()->PostMessage(&dbgMsg);
+      break;
+    }
+
+    case kMsgMascotSelect:
+    {
+      entry_ref ref;
+      if (msg->FindRef("refs", &ref) == B_OK) {
+        BMessage refsMsg(B_REFS_RECEIVED);
+        refsMsg.AddRef("refs", &ref);
+        be_app->PostMessage(&refsMsg);
+      }
       break;
     }
 

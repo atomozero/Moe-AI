@@ -47,6 +47,7 @@ private:
   BTextView*    fSystemPromptView;
 
   // Mascot tab
+  BMenuField*   fMascotField;
   BMenuField*   fWinkField;
   BMenuField*   fPollingField;
   BMenuField*   fRedrawField;
