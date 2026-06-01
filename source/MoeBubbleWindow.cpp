@@ -37,7 +37,7 @@
 static MoeBubbleWindow* sBubbleWindow = NULL;
 
 static const uint32 kMsgAutoHide = 'MaHd';
-static const bigtime_t kAutoHideDelay = 10000000; // 10 seconds
+static const bigtime_t kAutoHideDelay = 30000000; // 30 seconds
 
 static const float kBubbleWidth = 300;
 static const float kBubbleHeight = 200;
