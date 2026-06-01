@@ -117,7 +117,7 @@ BString
 MoeJsonHelper::FindString(const BString& json, const char* key)
 {
   int32 pos = _FindKeyValue(json, key);
-  if (pos < 0 || json[pos] != '"')
+  if (pos < 0 || pos >= json.Length() || json[pos] != '"')
     return BString();
 
   pos++; // skip opening quote
@@ -149,7 +149,7 @@ int32
 MoeJsonHelper::FindInt(const BString& json, const char* key)
 {
   int32 pos = _FindKeyValue(json, key);
-  if (pos < 0)
+  if (pos < 0 || pos >= json.Length())
     return 0;
 
   BString numStr;
@@ -168,7 +168,7 @@ BString
 MoeJsonHelper::FindObject(const BString& json, const char* key)
 {
   int32 pos = _FindKeyValue(json, key);
-  if (pos < 0 || json[pos] != '{')
+  if (pos < 0 || pos >= json.Length() || json[pos] != '{')
     return BString();
 
   int32 end = _FindMatchingClose(json, pos + 1, '{', '}');
@@ -182,7 +182,7 @@ BString
 MoeJsonHelper::FindArray(const BString& json, const char* key)
 {
   int32 pos = _FindKeyValue(json, key);
-  if (pos < 0 || json[pos] != '[')
+  if (pos < 0 || pos >= json.Length() || json[pos] != '[')
     return BString();
 
   int32 end = _FindMatchingClose(json, pos + 1, '[', ']');
