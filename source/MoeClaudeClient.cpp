@@ -156,6 +156,14 @@ MoeClaudeClient::_LoadSettings(void)
   fModel = _ReadConfigString("claude_model", kDefaultModel);
   fPippoUrl = _ReadConfigString("pippo_url", kDefaultPippoUrl);
   fSystemPrompt = _ReadConfigString("system_prompt", kDefaultSystemPrompt);
+
+  // Validate Pippo URL: must start with http:// or https://
+  if (fPippoUrl.FindFirst("http://") != 0
+      && fPippoUrl.FindFirst("https://") != 0) {
+    fprintf(stderr, "Invalid Pippo MCP URL: %s, using default\n",
+            fPippoUrl.String());
+    fPippoUrl = kDefaultPippoUrl;
+  }
 }
 
 
