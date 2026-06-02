@@ -38,7 +38,8 @@ class MoeUtils
 {
 public:
   static void TransparentLeftTop(BBitmap *bitmap);
-  static void MapBitmap(BBitmap *dist, const BBitmap *src, 
+  static BBitmap *EnsureRGBA32(BBitmap *bitmap);
+  static void MapBitmap(BBitmap *dist, const BBitmap *src,
 			const BRect *srcRect = NULL);
   static int32 Rand(int32 max);
   static float Rand(void);

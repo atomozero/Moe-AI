@@ -89,20 +89,12 @@ MoeSurface::MoeSurface(BBitmap *bitmap, int32 cellSize)
 {
   MoeUtils::TransparentLeftTop(bitmap);
 
-  // Some PNG translators return B_RGB32 bitmaps even when the image
-  // has a real alpha channel with transparency data. After
-  // TransparentLeftTop processes the bitmap, B_OP_ALPHA rendering
-  // requires B_RGBA32 color space to correctly blend transparent
-  // pixels. Use ImportBits to safely copy pixel data, handling any
-  // potential differences in row stride or padding between the two
-  // color spaces.
-  if (mBitmap->ColorSpace() == B_RGB32)
-    {
-      BBitmap *rgba = new BBitmap(mBitmap->Bounds(), B_RGBA32);
-      rgba->ImportBits(mBitmap);
-      delete mBitmap;
-      mBitmap = rgba;
-    }
+  // Ensure the bitmap is B_RGBA32 so that B_OP_ALPHA rendering works
+  // correctly. Some PNG translators return B_RGB32 bitmaps even when
+  // the image has a real alpha channel. EnsureRGBA32 uses raw memcpy
+  // to preserve the alpha byte exactly (unlike ImportBits which may
+  // set alpha=255 when converting from B_RGB32).
+  mBitmap = MoeUtils::EnsureRGBA32(mBitmap);
 
   this->ParseBitmap();
 }

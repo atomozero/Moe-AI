@@ -58,6 +58,10 @@ MoeAppUtils::MagnifyBitmaps(float size,
 		      ::floor(old_bitmap->Bounds().Height() * size)),
 		B_RGBA32);
   MoeUtils::TransparentLeftTop(old_bitmap);
+  // Convert old_bitmap to B_RGBA32 so that DrawBitmap preserves
+  // the alpha channel during scaling. Without this, drawing a
+  // B_RGB32 source onto a B_RGBA32 buffer may set all alpha to 255.
+  old_bitmap = MoeUtils::EnsureRGBA32(old_bitmap);
 
   buf = new BBitmap(old_bitmap->Bounds(), B_RGBA32, true);
   BView *canvas = new BView(buf->Bounds(), "", 0, B_WILL_DRAW);

@@ -106,8 +106,32 @@ MoeUtils::TransparentLeftTop(BBitmap *bitmap)
 }
 
 
+BBitmap *
+MoeUtils::EnsureRGBA32(BBitmap *bitmap)
+{
+  if (bitmap->ColorSpace() == B_RGBA32)
+    return bitmap;
+
+  // Create a new B_RGBA32 bitmap and copy pixel data row by row.
+  // Raw memcpy preserves the alpha byte exactly as-is, unlike
+  // ImportBits which may set alpha=255 when converting from B_RGB32
+  // (a "no alpha" format) to B_RGBA32 (an "with alpha" format).
+  BBitmap *rgba = new BBitmap(bitmap->Bounds(), B_RGBA32);
+  int32 h = bitmap->Bounds().IntegerHeight() + 1;
+  int32 srcBpr = bitmap->BytesPerRow();
+  int32 dstBpr = rgba->BytesPerRow();
+  int32 rowBytes = srcBpr < dstBpr ? srcBpr : dstBpr;
+  for (int32 y = 0; y < h; y++)
+    ::memcpy((char*)rgba->Bits() + y * dstBpr,
+	     (char*)bitmap->Bits() + y * srcBpr,
+	     rowBytes);
+  delete bitmap;
+  return rgba;
+}
+
+
 void
-MoeUtils::MapBitmap(BBitmap *dist, const BBitmap *src, 
+MoeUtils::MapBitmap(BBitmap *dist, const BBitmap *src,
 		    const BRect *srcRect)
 {
   BBitmap *buf;
