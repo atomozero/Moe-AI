@@ -118,7 +118,7 @@ MoeUtils::MapBitmap(BBitmap *dist, const BBitmap *src,
   buf = new BBitmap(BRect(0, 0,
 			  (dist->Bounds().right + 1) * 2 - 1,
 			  (dist->Bounds().bottom + 1) * 2 - 1),
-		    B_RGB32, true);
+		    B_RGBA32, true);
   
   bufView = new BView(buf->Bounds(), "", 0, B_WILL_DRAW);
   buf->Lock();

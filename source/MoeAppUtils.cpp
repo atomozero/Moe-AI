@@ -56,10 +56,10 @@ MoeAppUtils::MagnifyBitmaps(float size,
     new BBitmap(BRect(0, 0,
 		      ::floor(old_bitmap->Bounds().Width() * size),
 		      ::floor(old_bitmap->Bounds().Height() * size)),
-		B_RGB32);
+		B_RGBA32);
   MoeUtils::TransparentLeftTop(old_bitmap);
-  
-  buf = new BBitmap(old_bitmap->Bounds(), B_RGB32, true);
+
+  buf = new BBitmap(old_bitmap->Bounds(), B_RGBA32, true);
   BView *canvas = new BView(buf->Bounds(), "", 0, B_WILL_DRAW);
   buf->Lock();
   buf->AddChild(canvas);
@@ -93,7 +93,7 @@ MoeAppUtils::MagnifyBitmaps(float size,
 	  canvas->Sync();
 	  MoeUtils::MapBitmap(*bitmap, buf);
 	  BBitmap *cell = new BBitmap(new_frame.OffsetToCopy(0, 0),
-				      B_RGB32);
+				      B_RGBA32);
 	  MoeUtils::MapBitmap(cell, *bitmap, &new_frame);
 	  new_anime->AddCell(cell);
 	}
