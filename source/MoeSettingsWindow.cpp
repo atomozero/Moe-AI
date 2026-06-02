@@ -39,6 +39,7 @@
 #include <Catalog.h>
 #include <fs_attr.h>
 #include "MoeDefs.h"
+#include "MoeUtils.h"
 #include "MoeProperty.h"
 #include "MoeSettingsWindow.h"
 #include "MoeClaudeClient.h"
@@ -168,8 +169,14 @@ MoeMascotPreviewView::SetBitmap(BBitmap* bitmap)
 {
   delete fBitmap;
   fBitmap = bitmap;
-  if (fBitmap)
+  if (fBitmap) {
+    // Apply the same transparency processing used by the mascot
+    // renderer, so BMP-style images with a solid background color
+    // (e.g. green, white) have it converted to transparent in the
+    // preview too.
+    MoeUtils::TransparentLeftTop(fBitmap);
     fContentRect = _FindContentRect(fBitmap);
+  }
   Invalidate();
 }
 
