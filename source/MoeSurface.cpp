@@ -93,13 +93,13 @@ MoeSurface::MoeSurface(BBitmap *bitmap, int32 cellSize)
   // has a real alpha channel with transparency data. After
   // TransparentLeftTop processes the bitmap, B_OP_ALPHA rendering
   // requires B_RGBA32 color space to correctly blend transparent
-  // pixels. Since B_RGB32 and B_RGBA32 have identical memory layouts
-  // (both are 4 bytes/pixel BGRA), we can simply create a new bitmap
-  // with B_RGBA32 and copy the raw pixel data.
+  // pixels. Use ImportBits to safely copy pixel data, handling any
+  // potential differences in row stride or padding between the two
+  // color spaces.
   if (mBitmap->ColorSpace() == B_RGB32)
     {
       BBitmap *rgba = new BBitmap(mBitmap->Bounds(), B_RGBA32);
-      ::memcpy(rgba->Bits(), mBitmap->Bits(), mBitmap->BitsLength());
+      rgba->ImportBits(mBitmap);
       delete mBitmap;
       mBitmap = rgba;
     }
