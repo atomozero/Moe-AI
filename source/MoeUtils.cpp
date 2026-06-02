@@ -57,27 +57,52 @@ MoeUtils::TransparentLeftTop(BBitmap *bitmap)
 {
   rgb_color leftTopColor, *color, *colorTop;
   uint32 i, n;
+  bool hasAlphaChannel = false;
 
   colorTop = reinterpret_cast<rgb_color*>(bitmap->Bits());
   leftTopColor = *colorTop;
   n = bitmap->BitsLength() / sizeof(rgb_color);
 
-  // avoid BMP Translator BUG (inconstancy alpha)
+  // Check if image has a real alpha channel (mixed alpha values)
+  // vs BMP-style images where all alpha values are identical.
   for (i = 1, color = colorTop + 1; i < n; i++, color++)
     if (color->alpha != leftTopColor.alpha)
-      break;
+      {
+	hasAlphaChannel = true;
+	break;
+      }
 
-  if (i == n)
+  if (!hasAlphaChannel)
     {
+      // BMP Translator BUG workaround: all alpha values are identical,
+      // so this is a BMP-style image without real alpha channel.
+      // Force all alpha to 255 and use the top-left pixel color as
+      // the transparency key color.
       leftTopColor.alpha = 255;
       for (i = 0, color = colorTop; i < n; i++, color++)
 	color->alpha = 255;
     }
 
-  // fill transparent pixels.
+  // Fill transparent pixels with B_TRANSPARENT_32_BIT.
   for (i = 0, color = colorTop; i < n; i++, color++)
-    if (color->alpha == 0 || *color == leftTopColor)
-      *color = B_TRANSPARENT_32_BIT;
+    {
+      if (hasAlphaChannel)
+	{
+	  // PNG with real alpha channel: only use alpha == 0 for
+	  // transparency. Do NOT use the top-left pixel as a key color,
+	  // because if it's opaque (part of the character), all pixels
+	  // with the same color would be incorrectly made transparent.
+	  if (color->alpha == 0)
+	    *color = B_TRANSPARENT_32_BIT;
+	}
+      else
+	{
+	  // BMP-style image: use the top-left pixel color as key color
+	  // to determine which pixels are background (transparent).
+	  if (color->alpha == 0 || *color == leftTopColor)
+	    *color = B_TRANSPARENT_32_BIT;
+	}
+    }
 }
 
 

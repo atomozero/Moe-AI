@@ -128,6 +128,13 @@ MoeBubbleWindow::Window(void)
 }
 
 
+MoeBubbleWindow*
+MoeBubbleWindow::WindowIfExists(void)
+{
+  return sBubbleWindow;
+}
+
+
 MoeBubbleWindow::MoeBubbleWindow(void)
   : BWindow(BRect(0, 0, kBubbleWidth, kBubbleHeight + kTailHeight),
             "Moe",
@@ -240,6 +247,70 @@ MoeBubbleWindow::ShowNear(BRect mascotFrame)
   Activate();
   fInput->MakeFocus(true);
   Unlock();
+}
+
+
+void
+MoeBubbleWindow::RepositionNear(BRect mascotFrame)
+{
+  if (!Lock())
+    return;
+  if (IsHidden()) {
+    Unlock();
+    return;
+  }
+  _RepositionTo(mascotFrame);
+  Unlock();
+}
+
+
+void
+MoeBubbleWindow::_RepositionTo(BRect mascotFrame)
+{
+  float totalH = kBubbleHeight + kTailHeight;
+  BRect screen = BScreen().Frame();
+
+  float mascotCX = mascotFrame.left + mascotFrame.Width() / 2;
+
+  float spaceAbove = mascotFrame.top - screen.top;
+  float spaceBelow = screen.bottom - mascotFrame.bottom;
+
+  float x, y;
+  bool tailOnBottom;
+
+  if (spaceAbove >= totalH + 5) {
+    y = mascotFrame.top - totalH - 2;
+    tailOnBottom = true;
+  } else if (spaceBelow >= totalH + 5) {
+    y = mascotFrame.bottom + 2;
+    tailOnBottom = false;
+  } else if (spaceAbove >= spaceBelow) {
+    y = screen.top + 5;
+    tailOnBottom = true;
+  } else {
+    y = screen.bottom - totalH - 5;
+    tailOnBottom = false;
+  }
+
+  x = mascotCX - kBubbleWidth / 2;
+  if (x < screen.left + 5) x = screen.left + 5;
+  if (x + kBubbleWidth > screen.right - 5)
+    x = screen.right - kBubbleWidth - 5;
+
+  float tailX = mascotCX - x;
+
+  BubbleView* bv = (BubbleView*)fBubbleView;
+  bv->fTailOnBottom = tailOnBottom;
+  bv->fTailX = tailX;
+
+  float inset = kPadding + kCornerRadius / 2;
+  float topInset = tailOnBottom ? inset : (kTailHeight + kPadding);
+  float bottomInset = tailOnBottom ? (kTailHeight + kPadding) : inset;
+  BGroupLayout* layout = (BGroupLayout*)bv->GetLayout();
+  layout->SetInsets(inset, topInset, inset, bottomInset);
+
+  MoveTo(x, y);
+  bv->Invalidate();
 }
 
 
@@ -622,6 +693,15 @@ MoeBubbleWindow::MessageReceived(BMessage* msg)
     {
       _ClearResponse();
       MoeClaudeClient::Client()->ClearHistory();
+      break;
+    }
+
+    case MOE_BUBBLE_REPOSITION:
+    {
+      BRect mascotFrame;
+      if (!IsHidden()
+          && msg->FindRect("mascot_frame", &mascotFrame) == B_OK)
+        _RepositionTo(mascotFrame);
       break;
     }
 

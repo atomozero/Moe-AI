@@ -6,29 +6,38 @@
 
 
 #include <cstdio>
+#include <cstring>
 #include <AppFileInfo.h>
 #include <Application.h>
-#include <Entry.h>
-#include <FilePanel.h>
-#include <Path.h>
-#include <Roster.h>
-#include <Size.h>
+#include <Alert.h>
+#include <Bitmap.h>
 #include <Box.h>
 #include <Button.h>
 #include <CheckBox.h>
 #include <Directory.h>
+#include <Entry.h>
 #include <File.h>
+#include <FilePanel.h>
 #include <LayoutBuilder.h>
+#include <ListView.h>
+#include <ListItem.h>
 #include <MenuField.h>
 #include <MenuItem.h>
+#include <Messenger.h>
+#include <NodeInfo.h>
+#include <Path.h>
 #include <PopUpMenu.h>
+#include <Roster.h>
 #include <Screen.h>
 #include <ScrollView.h>
+#include <Size.h>
 #include <StringView.h>
 #include <TabView.h>
 #include <TextControl.h>
 #include <TextView.h>
+#include <TranslationUtils.h>
 #include <Catalog.h>
+#include <fs_attr.h>
 #include "MoeDefs.h"
 #include "MoeProperty.h"
 #include "MoeSettingsWindow.h"
@@ -42,17 +51,21 @@ static MoeSettingsWindow* sSettingsWindow = NULL;
 
 // Message codes for internal use
 enum {
-  kMsgSaveAI      = 'SsAI',
-  kMsgModelSelect = 'SmSl',
-  kMsgWinkSelect  = 'SwSl',
-  kMsgPollSelect  = 'SpSl',
-  kMsgDrawSelect  = 'SdSl',
-  kMsgDebugToggle = 'SdTg',
-  kMsgBrowseMascot = 'SbMc',
-  kMsgMascotSelect = 'SmcS',
-  kMsgTtsToggle    = 'StTg',
-  kMsgVoiceSelect  = 'SvSl',
-  kMsgSpeedSelect  = 'SsSl',
+  kMsgSaveAI         = 'SsAI',
+  kMsgModelSelect    = 'SmSl',
+  kMsgWinkSelect     = 'SwSl',
+  kMsgPollSelect     = 'SpSl',
+  kMsgDrawSelect     = 'SdSl',
+  kMsgDebugToggle    = 'SdTg',
+  kMsgMascotSelect   = 'SmcS',
+  kMsgMascotActivate = 'SmcA',
+  kMsgMascotAdd      = 'SmcD',
+  kMsgMascotRemove   = 'SmcR',
+  kMsgMascotAdded    = 'SmcE',
+  kMsgMascotRefresh  = 'SmcF',
+  kMsgTtsToggle      = 'StTg',
+  kMsgVoiceSelect    = 'SvSl',
+  kMsgSpeedSelect    = 'SsSl',
 };
 
 struct ModelInfo {
@@ -72,10 +85,135 @@ static const char* kSpeedLabels[] = {
 };
 
 
+// ======== MoeMascotPreviewView ========
+
+MoeMascotPreviewView::MoeMascotPreviewView(void)
+  : BView("preview", B_WILL_DRAW | B_FULL_UPDATE_ON_RESIZE)
+  , fBitmap(NULL)
+{
+  SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
+  SetExplicitMinSize(BSize(160, 160));
+  SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, B_SIZE_UNLIMITED));
+}
+
+
+MoeMascotPreviewView::~MoeMascotPreviewView(void)
+{
+  delete fBitmap;
+}
+
+
+void
+MoeMascotPreviewView::Draw(BRect updateRect)
+{
+  BRect bounds = Bounds();
+
+  if (!fBitmap) {
+    SetHighColor(ViewColor());
+    FillRect(bounds);
+
+    // Draw placeholder text
+    SetHighColor(tint_color(ViewColor(), B_DARKEN_2_TINT));
+    const char* text = B_TRANSLATE("No mascot selected");
+    float textWidth = StringWidth(text);
+    font_height fh;
+    GetFontHeight(&fh);
+    DrawString(text,
+      BPoint((bounds.Width() - textWidth) / 2,
+             bounds.Height() / 2 + fh.ascent / 2));
+    return;
+  }
+
+  // Clear background
+  SetHighColor(ViewColor());
+  FillRect(bounds);
+
+  // Use the content rect (visible area) for centering,
+  // so the character appears centered even if it's not
+  // centered in the source bitmap.
+  float cw = fContentRect.Width() + 1;
+  float ch = fContentRect.Height() + 1;
+  float vw = bounds.Width() + 1;
+  float vh = bounds.Height() + 1;
+
+  float scale = std::min(vw / cw, vh / ch);
+  // Don't scale up beyond 2x
+  if (scale > 2.0f)
+    scale = 2.0f;
+
+  float dw = cw * scale;
+  float dh = ch * scale;
+  float dx = (vw - dw) / 2;
+  float dy = (vh - dh) / 2;
+
+  BRect destRect(dx, dy, dx + dw - 1, dy + dh - 1);
+
+  SetDrawingMode(B_OP_ALPHA);
+  SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+  DrawBitmap(fBitmap, fContentRect, destRect);
+  SetDrawingMode(B_OP_COPY);
+}
+
+
+void
+MoeMascotPreviewView::GetPreferredSize(float* width, float* height)
+{
+  *width = 160;
+  *height = 160;
+}
+
+
+void
+MoeMascotPreviewView::SetBitmap(BBitmap* bitmap)
+{
+  delete fBitmap;
+  fBitmap = bitmap;
+  if (fBitmap)
+    fContentRect = _FindContentRect(fBitmap);
+  Invalidate();
+}
+
+
+BRect
+MoeMascotPreviewView::_FindContentRect(BBitmap* bitmap)
+{
+  BRect bounds = bitmap->Bounds();
+  int32 width = bounds.IntegerWidth() + 1;
+  int32 height = bounds.IntegerHeight() + 1;
+  int32 bpr = bitmap->BytesPerRow() / sizeof(rgb_color);
+  const rgb_color* bits =
+    reinterpret_cast<const rgb_color*>(bitmap->Bits());
+
+  int32 minX = width, minY = height, maxX = -1, maxY = -1;
+
+  for (int32 y = 0; y < height; y++)
+    {
+      for (int32 x = 0; x < width; x++)
+	{
+	  const rgb_color& pixel = bits[y * bpr + x];
+	  if (pixel.alpha > 0)
+	    {
+	      if (x < minX) minX = x;
+	      if (x > maxX) maxX = x;
+	      if (y < minY) minY = y;
+	      if (y > maxY) maxY = y;
+	    }
+	}
+    }
+
+  // If no visible content found, return full bounds
+  if (maxX < 0)
+    return bounds;
+
+  return BRect(minX, minY, maxX, maxY);
+}
+
+
+// ======== MoeSettingsWindow ========
+
 MoeSettingsWindow*
 MoeSettingsWindow::Window(void)
 {
-  // Called from app thread only (via MOE_SETTINGS_OPEN handler)
   if (!sSettingsWindow)
     sSettingsWindow = new MoeSettingsWindow();
   return sSettingsWindow;
@@ -83,12 +221,13 @@ MoeSettingsWindow::Window(void)
 
 
 MoeSettingsWindow::MoeSettingsWindow(void)
-  : BWindow(BRect(200, 200, 700, 600),
+  : BWindow(BRect(200, 200, 750, 650),
             B_TRANSLATE("Moe-AI Settings"),
             B_TITLED_WINDOW_LOOK,
             B_NORMAL_WINDOW_FEEL,
             B_AUTO_UPDATE_SIZE_LIMITS
             | B_CLOSE_ON_ESCAPE)
+  , fAddPanel(NULL)
 {
   BTabView* tabView = new BTabView("tabs", B_WIDTH_FROM_WIDEST);
 
@@ -142,6 +281,30 @@ MoeSettingsWindow::MoeSettingsWindow(void)
   BView* mascotTab = new BView(B_TRANSLATE("Mascot"), B_WILL_DRAW);
   mascotTab->SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
 
+  // Mascot list view
+  fMascotList = new BListView("mascot_list", B_SINGLE_SELECTION_LIST);
+  fMascotList->SetSelectionMessage(new BMessage(kMsgMascotSelect));
+  fMascotList->SetInvocationMessage(new BMessage(kMsgMascotActivate));
+  fMascotListScroll = new BScrollView("mascot_list_scroll",
+                                      fMascotList,
+                                      B_WILL_DRAW | B_FRAME_EVENTS,
+                                      false, true);
+
+  // Preview
+  fPreviewView = new MoeMascotPreviewView();
+
+  // Buttons
+  fActivateButton = new BButton("activate",
+    B_TRANSLATE("Set active"),
+    new BMessage(kMsgMascotActivate));
+  fAddButton = new BButton("add",
+    B_TRANSLATE("Add" B_UTF8_ELLIPSIS),
+    new BMessage(kMsgMascotAdd));
+  fRemoveButton = new BButton("remove",
+    B_TRANSLATE("Remove"),
+    new BMessage(kMsgMascotRemove));
+  fRemoveButton->SetEnabled(false);
+
   // Wink popup
   BPopUpMenu* winkMenu = new BPopUpMenu("");
   for (int32 i = 0; i < 5; i++) {
@@ -178,61 +341,27 @@ MoeSettingsWindow::MoeSettingsWindow(void)
                                    B_TRANSLATE("Debug frame visible"),
                                    new BMessage(kMsgDebugToggle));
 
-  // Build mascot selection menu from mascots/ directory
-  BPopUpMenu* mascotMenu = new BPopUpMenu("");
-  {
-    // Find app directory and look for mascots/ next to it
-    app_info appInfo;
-    be_app->GetAppInfo(&appInfo);
-    BEntry appEntry(&appInfo.ref);
-    BPath appPath;
-    appEntry.GetPath(&appPath);
-    appPath.GetParent(&appPath);  // up from objects.xxx/
-    appPath.GetParent(&appPath);  // up from source/
-    // If still inside objects dir, go up once more
-    BPath testPath(appPath);
-    testPath.Append("mascots");
-    BDirectory testDir(testPath.Path());
-    if (testDir.InitCheck() != B_OK)
-      appPath.GetParent(&appPath);
-    BPath mascotsPath(appPath);
-    mascotsPath.Append("mascots");
-
-    BDirectory dir(mascotsPath.Path());
-    if (dir.InitCheck() == B_OK) {
-      BEntry entry;
-      while (dir.GetNextEntry(&entry) == B_OK) {
-        BPath filePath;
-        entry.GetPath(&filePath);
-        BString name(filePath.Leaf());
-        // Only show image files
-        if (name.FindLast(".png") > 0 || name.FindLast(".jpg") > 0
-            || name.FindLast(".bmp") > 0) {
-          BMessage* msg = new BMessage(kMsgMascotSelect);
-          entry_ref ref;
-          entry.GetRef(&ref);
-          msg->AddRef("refs", &ref);
-          mascotMenu->AddItem(new BMenuItem(name.String(), msg));
-        }
-      }
-    }
-
-    // Add separator and browse option
-    if (mascotMenu->CountItems() > 0)
-      mascotMenu->AddSeparatorItem();
-    mascotMenu->AddItem(new BMenuItem(
-      B_TRANSLATE("Browse" B_UTF8_ELLIPSIS),
-      new BMessage(kMsgBrowseMascot)));
-  }
-  fMascotField = new BMenuField(B_TRANSLATE("Mascot:"), mascotMenu);
-
+  // Layout: top half is list + preview side by side, bottom is settings
   BLayoutBuilder::Group<>(mascotTab, B_VERTICAL, 4)
     .SetInsets(B_USE_DEFAULT_SPACING)
-    .Add(fMascotField)
-    .Add(fWinkField)
-    .Add(fPollingField)
-    .Add(fRedrawField)
-    .AddGlue()
+    .AddGroup(B_HORIZONTAL, 4, 3)
+      .Add(fMascotListScroll, 2)
+      .Add(fPreviewView, 3)
+    .End()
+    .AddGroup(B_HORIZONTAL, 4)
+      .Add(fActivateButton)
+      .Add(fAddButton)
+      .Add(fRemoveButton)
+      .AddGlue()
+    .End()
+    .AddGroup(B_HORIZONTAL, 8)
+      .Add(fWinkField)
+      .Add(fPollingField)
+    .End()
+    .AddGroup(B_HORIZONTAL, 8)
+      .Add(fRedrawField)
+      .AddGlue()
+    .End()
     .Add(fDebugFrameCheck)
   .End();
 
@@ -301,17 +430,153 @@ MoeSettingsWindow::MoeSettingsWindow(void)
   .End();
 
   // Set minimum window size
-  SetSizeLimits(400, 900, 350, 700);
-  ResizeTo(500, 400);
+  SetSizeLimits(450, 1000, 400, 800);
+  ResizeTo(550, 500);
   CenterOnScreen();
 
   _LoadSettings();
+  _PopulateMascotList();
 }
 
 
 MoeSettingsWindow::~MoeSettingsWindow(void)
 {
   sSettingsWindow = NULL;
+  delete fAddPanel;
+
+  // Clean up entry_ref list
+  for (int32 i = 0; i < fMascotRefs.CountItems(); i++)
+    delete reinterpret_cast<entry_ref*>(fMascotRefs.ItemAt(i));
+}
+
+
+BPath
+MoeSettingsWindow::_MascotsPath(void)
+{
+  app_info appInfo;
+  be_app->GetAppInfo(&appInfo);
+  BEntry appEntry(&appInfo.ref);
+  BPath appPath;
+  appEntry.GetPath(&appPath);
+  appPath.GetParent(&appPath);
+  appPath.GetParent(&appPath);
+
+  // Check if mascots/ exists here
+  BPath testPath(appPath);
+  testPath.Append("mascots");
+  BDirectory testDir(testPath.Path());
+  if (testDir.InitCheck() != B_OK)
+    appPath.GetParent(&appPath);
+
+  BPath mascotsPath(appPath);
+  mascotsPath.Append("mascots");
+  return mascotsPath;
+}
+
+
+void
+MoeSettingsWindow::_PopulateMascotList(void)
+{
+  // This function modifies BViews (BListView, preview, buttons)
+  // and MUST be called from the window's own thread only.
+  // Use PostMessage(kMsgMascotRefresh) from other threads.
+
+  // Clear existing
+  while (fMascotList->CountItems() > 0) {
+    BListItem* item = fMascotList->RemoveItem((int32)0);
+    delete item;
+  }
+  for (int32 i = 0; i < fMascotRefs.CountItems(); i++)
+    delete reinterpret_cast<entry_ref*>(fMascotRefs.ItemAt(i));
+  fMascotRefs.MakeEmpty();
+
+  // Query active mascots from MoeApplication
+  BMessage query(MOE_QUERY_MASCOTS);
+  BMessage reply;
+  BList activeRefs;
+
+  BMessenger appMessenger(be_app);
+  if (appMessenger.SendMessage(&query, &reply, 1000000, 1000000) == B_OK) {
+    entry_ref ref;
+    for (int32 i = 0; reply.FindRef("refs", i, &ref) == B_OK; i++)
+      activeRefs.AddItem(new entry_ref(ref));
+  }
+
+  // Scan mascots/ directory
+  BPath mascotsPath = _MascotsPath();
+  BDirectory dir(mascotsPath.Path());
+
+  if (dir.InitCheck() == B_OK) {
+    BEntry entry;
+    while (dir.GetNextEntry(&entry) == B_OK) {
+      BPath filePath;
+      entry.GetPath(&filePath);
+      BString name(filePath.Leaf());
+
+      // Only show image files
+      if (name.FindLast(".png") < 0 && name.FindLast(".jpg") < 0
+          && name.FindLast(".bmp") < 0 && name.FindLast(".gif") < 0)
+        continue;
+
+      entry_ref ref;
+      entry.GetRef(&ref);
+
+      // Check if this mascot is active
+      bool isActive = false;
+      for (int32 j = 0; j < activeRefs.CountItems(); j++) {
+        entry_ref* activeRef = reinterpret_cast<entry_ref*>(activeRefs.ItemAt(j));
+        if (*activeRef == ref) {
+          isActive = true;
+          break;
+        }
+      }
+
+      // Build display name with active indicator
+      BString displayName;
+      if (isActive)
+        displayName << B_UTF8_BULLET " ";
+      // Strip extension for display
+      int32 dotPos = name.FindLast('.');
+      if (dotPos > 0)
+        name.Truncate(dotPos);
+      // Capitalize first letter
+      if (name.Length() > 0) {
+        char first = name.ByteAt(0);
+        if (first >= 'a' && first <= 'z')
+          name.SetByteAt(0, first - 'a' + 'A');
+      }
+      displayName << name;
+
+      fMascotList->AddItem(new BStringItem(displayName.String()));
+      fMascotRefs.AddItem(new entry_ref(ref));
+    }
+  }
+
+  // Clean up active refs
+  for (int32 i = 0; i < activeRefs.CountItems(); i++)
+    delete reinterpret_cast<entry_ref*>(activeRefs.ItemAt(i));
+
+  // Select first item if any
+  if (fMascotList->CountItems() > 0) {
+    fMascotList->Select(0);
+    _UpdatePreview(0);
+  }
+}
+
+
+void
+MoeSettingsWindow::_UpdatePreview(int32 index)
+{
+  if (index < 0 || index >= fMascotRefs.CountItems()) {
+    fPreviewView->SetBitmap(NULL);
+    fRemoveButton->SetEnabled(false);
+    return;
+  }
+
+  entry_ref* ref = reinterpret_cast<entry_ref*>(fMascotRefs.ItemAt(index));
+  BBitmap* bitmap = BTranslationUtils::GetBitmap(ref);
+  fPreviewView->SetBitmap(bitmap);
+  fRemoveButton->SetEnabled(true);
 }
 
 
@@ -325,7 +590,6 @@ MoeSettingsWindow::ShowNear(BRect mascotFrame)
 
   float mascotCX = mascotFrame.left + mascotFrame.Width() / 2;
 
-  // Try right of mascot, then left, then centered
   float x, y;
 
   float spaceRight = screen.right - mascotFrame.right;
@@ -338,19 +602,23 @@ MoeSettingsWindow::ShowNear(BRect mascotFrame)
   else
     x = mascotCX - w / 2;
 
-  // Vertical: align top with mascot, clamp to screen
   y = mascotFrame.top;
 
-  // Clamp to screen
   if (x < screen.left + 5) x = screen.left + 5;
   if (x + w > screen.right - 5) x = screen.right - w - 5;
   if (y < screen.top + 5) y = screen.top + 5;
   if (y + h > screen.bottom - 5) y = screen.bottom - h - 5;
 
   MoveTo(x, y);
+
   if (IsHidden())
     Show();
   Activate();
+
+  // Post a message to refresh the mascot list on the window's own
+  // thread. This is critical: _PopulateMascotList() modifies BViews
+  // and must run on the window thread, not the application thread.
+  PostMessage(kMsgMascotRefresh);
 }
 
 
@@ -417,7 +685,6 @@ MoeSettingsWindow::_LoadSettings(void)
       currentModel.Trim();
     }
   }
-  // Mark current model in menu
   BMenu* modelMenu = fModelField->Menu();
   for (int32 i = 0; i < kModelCount; i++) {
     BMenuItem* item = modelMenu->ItemAt(i);
@@ -526,10 +793,7 @@ static void
 _WriteConfigFile(const char* filename, const char* content)
 {
   BString path(MOE_CONFIG_DIRECTORY);
-
-  // Ensure directory exists
   create_directory(MOE_CONFIG_DIRECTORY, 0755);
-
   path << filename;
   BFile file(path.String(), B_WRITE_ONLY | B_CREATE_FILE | B_ERASE_FILE);
   if (file.InitCheck() == B_OK)
@@ -542,7 +806,6 @@ MoeSettingsWindow::_SaveAISettings(void)
 {
   _WriteConfigFile("claude_api_key", fApiKeyControl->Text());
 
-  // Get selected model
   BMenuItem* modelItem = fModelField->Menu()->FindMarked();
   if (modelItem) {
     BMessage* msg = modelItem->Message();
@@ -557,7 +820,6 @@ MoeSettingsWindow::_SaveAISettings(void)
   if (prompt && prompt[0] != '\0')
     _WriteConfigFile("system_prompt", prompt);
 
-  // Tell MoeClaudeClient to reload
   MoeClaudeClient::Client()->ReloadSettings();
 }
 
@@ -567,7 +829,6 @@ MoeSettingsWindow::_SaveMascotSettings(void)
 {
   MoeProperty* property = MoeProperty::Property();
 
-  // Wink
   BMenuItem* winkItem = fWinkField->Menu()->FindMarked();
   if (winkItem) {
     bigtime_t interval;
@@ -578,7 +839,6 @@ MoeSettingsWindow::_SaveMascotSettings(void)
     }
   }
 
-  // Polling
   BMenuItem* pollItem = fPollingField->Menu()->FindMarked();
   if (pollItem) {
     bigtime_t interval;
@@ -589,7 +849,6 @@ MoeSettingsWindow::_SaveMascotSettings(void)
     }
   }
 
-  // Redraw
   BMenuItem* drawItem = fRedrawField->Menu()->FindMarked();
   if (drawItem) {
     bigtime_t interval;
@@ -600,7 +859,6 @@ MoeSettingsWindow::_SaveMascotSettings(void)
     }
   }
 
-  // Debug frame
   bool debugVisible = fDebugFrameCheck->Value() != 0;
   BMessage dbgMsg(MOE_SET_DEBUG_FRAME_VISIBLE);
   dbgMsg.AddBool("data", debugVisible);
@@ -618,6 +876,99 @@ MoeSettingsWindow::MessageReceived(BMessage* msg)
 
     case kMsgModelSelect:
       break;
+
+    case kMsgMascotRefresh:
+      _PopulateMascotList();
+      break;
+
+    case kMsgMascotSelect:
+    {
+      int32 index = fMascotList->CurrentSelection();
+      _UpdatePreview(index);
+      break;
+    }
+
+    case kMsgMascotActivate:
+    {
+      int32 index = fMascotList->CurrentSelection();
+      if (index < 0 || index >= fMascotRefs.CountItems())
+        break;
+
+      entry_ref* ref = reinterpret_cast<entry_ref*>(fMascotRefs.ItemAt(index));
+      BMessage toggleMsg(MOE_MASCOT_REPLACE);
+      toggleMsg.AddRef("refs", ref);
+      be_app->PostMessage(&toggleMsg);
+
+      // Refresh the list after a short delay to show updated active state
+      BMessage refreshMsg(kMsgMascotSelect);
+      BMessenger(this).SendMessage(&refreshMsg);
+      // Re-populate to update active indicators
+      _PopulateMascotList();
+      break;
+    }
+
+    case kMsgMascotAdd:
+    {
+      if (!fAddPanel) {
+        BMessage* panelMsg = new BMessage(kMsgMascotAdded);
+        fAddPanel = new BFilePanel(B_OPEN_PANEL,
+          new BMessenger(this), NULL,
+          B_FILE_NODE, false, panelMsg, NULL, true, true);
+        fAddPanel->Window()->SetTitle(
+          B_TRANSLATE("Choose mascot image to add"));
+      }
+      fAddPanel->SetPanelDirectory("/boot/home");
+      fAddPanel->Show();
+      break;
+    }
+
+    case kMsgMascotAdded:
+    {
+      // File selected from panel - copy to mascots/ directory
+      entry_ref srcRef;
+      if (msg->FindRef("refs", &srcRef) != B_OK)
+        break;
+
+      BMessage addMsg(MOE_MASCOT_ADD);
+      addMsg.AddRef("refs", &srcRef);
+      BMessage reply;
+      BMessenger(be_app).SendMessage(&addMsg, &reply, 2000000, 2000000);
+
+      // Refresh list
+      _PopulateMascotList();
+      break;
+    }
+
+    case kMsgMascotRemove:
+    {
+      int32 index = fMascotList->CurrentSelection();
+      if (index < 0 || index >= fMascotRefs.CountItems())
+        break;
+
+      entry_ref* ref = reinterpret_cast<entry_ref*>(fMascotRefs.ItemAt(index));
+      BString text(B_TRANSLATE("Remove mascot \"%name%\" from the collection?"));
+      text.ReplaceAll("%name%", ref->name);
+
+      BAlert* alert = new BAlert(
+        B_TRANSLATE("Remove mascot"),
+        text.String(),
+        B_TRANSLATE("Remove"),
+        B_TRANSLATE("Cancel"),
+        NULL,
+        B_WIDTH_AS_USUAL,
+        B_WARNING_ALERT);
+      alert->SetShortcut(1, B_ESCAPE);
+
+      if (alert->Go() == 0) {
+        BMessage removeMsg(MOE_MASCOT_REMOVE);
+        removeMsg.AddRef("refs", ref);
+        be_app->PostMessage(&removeMsg);
+
+        // Refresh list
+        _PopulateMascotList();
+      }
+      break;
+    }
 
     case kMsgWinkSelect:
     {
@@ -661,31 +1012,6 @@ MoeSettingsWindow::MessageReceived(BMessage* msg)
       break;
     }
 
-    case kMsgMascotSelect:
-    {
-      entry_ref ref;
-      if (msg->FindRef("refs", &ref) == B_OK) {
-        BMessage toggleMsg(MOE_MASCOT_TOGGLE);
-        toggleMsg.AddRef("refs", &ref);
-        be_app->PostMessage(&toggleMsg);
-      }
-      break;
-    }
-
-    case kMsgBrowseMascot:
-    {
-      static BFilePanel* sPanel = NULL;
-      if (!sPanel) {
-        sPanel = new BFilePanel(B_OPEN_PANEL,
-          new BMessenger(be_app), NULL,
-          B_FILE_NODE, false, NULL, NULL, true, true);
-        sPanel->Window()->SetTitle(B_TRANSLATE("Choose mascot image"));
-      }
-      sPanel->SetPanelDirectory("/boot/home");
-      sPanel->Show();
-      break;
-    }
-
     case kMsgTtsToggle:
       _WriteConfigFile("tts_enabled",
         fTtsEnabledCheck->Value() ? "1" : "0");
@@ -717,7 +1043,6 @@ MoeSettingsWindow::MessageReceived(BMessage* msg)
 bool
 MoeSettingsWindow::QuitRequested(void)
 {
-  // Save mascot settings on close
   _SaveMascotSettings();
   Hide();
   return false;

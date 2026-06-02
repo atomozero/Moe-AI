@@ -88,6 +88,10 @@ enum
   MOE_MASCOT_REPLACE              = 'Mmrp',
   MOE_MASCOT_TOGGLE               = 'Mmtg',
   MOE_SETTINGS_SAVE               = 'Mssv',
+  MOE_BUBBLE_REPOSITION           = 'Mbrp',
+  MOE_QUERY_MASCOTS               = 'Mqms',
+  MOE_MASCOT_ADD                  = 'Mmad',
+  MOE_MASCOT_REMOVE               = 'Mmrm',
 };
 
 

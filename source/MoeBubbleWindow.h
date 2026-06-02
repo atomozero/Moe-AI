@@ -26,8 +26,10 @@ class MoeBubbleWindow : public BWindow
 {
 public:
   static MoeBubbleWindow* Window(void);
+  static MoeBubbleWindow* WindowIfExists(void);
 
   void ShowNear(BRect mascotFrame);
+  void RepositionNear(BRect mascotFrame);
   void SetResponse(const char* text);
   void SetError(const char* text);
   void SetToolProgress(const char* toolName);
@@ -46,6 +48,7 @@ private:
   void _ClearResponse(void);
   void _AppendStyled(const char* text, rgb_color color, bool bold);
   void _ScrollToBottom(void);
+  void _RepositionTo(BRect mascotFrame);
   void _ResetAutoHideTimer(void);
   void _StopAutoHideTimer(void);
 

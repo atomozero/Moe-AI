@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <fs_attr.h>
 #include <Invoker.h>
 #include <Alert.h>
@@ -47,6 +48,7 @@
 #include "MoeAnime.h"
 #include "MoeRectTransformer.h"
 #include "MoeMascotMenu.h"
+#include "MoeBubbleWindow.h"
 #include "MoeMascot.h"
 
 #undef B_TRANSLATION_CONTEXT
@@ -414,6 +416,14 @@ MoeMascot::MoveToPrefered(void)
       this->Redraw();
       this->MoveTo(point);
     }
+
+  // Notify bubble window to follow the mascot
+  MoeBubbleWindow* bubble = MoeBubbleWindow::WindowIfExists();
+  if (bubble != NULL) {
+    BMessage bubbleMsg(MOE_BUBBLE_REPOSITION);
+    bubbleMsg.AddRect("mascot_frame", this->Frame());
+    bubble->PostMessage(&bubbleMsg);
+  }
 }
 
 
@@ -458,7 +468,7 @@ MoeMascot::MouseDown(MoeWindowSlice *slice,
   if (buttons & B_SECONDARY_MOUSE_BUTTON)
     {
       slice->Looper()->CurrentMessage()->FindInt32("modifiers", &modifiers);
-      bool advanced = 
+      bool advanced =
 	(modifiers & B_SHIFT_KEY) &&
 	(modifiers & B_CONTROL_KEY) &&
 	(modifiers & B_COMMAND_KEY);

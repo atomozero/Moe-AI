@@ -41,6 +41,7 @@ class MoeMascot : public MoeWindow
 public:
   friend class MoeMascotManager;
 
+  const entry_ref& Entry(void) const { return mEntry; }
   float Size(void) const;
   int32 Side(void) const;
   bool IsXLocked(void) const;

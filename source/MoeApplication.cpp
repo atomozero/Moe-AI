@@ -32,11 +32,14 @@
 #include <AboutWindow.h>
 #include <Roster.h>
 #include <AppFileInfo.h>
+#include <Directory.h>
 #include <File.h>
 #include <Entry.h>
 #include <Path.h>
+#include <fs_attr.h>
 #include <Alert.h>
 #include <Catalog.h>
+#include <NodeInfo.h>
 #include "MoeDefs.h"
 #include "MoeUtils.h"
 #include "MoeConsole.h"
@@ -344,14 +347,114 @@ MoeApplication::MessageReceived(BMessage *msg)
       {
 	BRect mascotFrame;
 	MoeSettingsWindow* settingsWin = MoeSettingsWindow::Window();
-	if (msg->FindRect("mascot_frame", &mascotFrame) == B_OK)
+	if (msg->FindRect("mascot_frame", &mascotFrame) == B_OK) {
 	  settingsWin->ShowNear(mascotFrame);
-	else {
+	} else {
 	  if (settingsWin->IsHidden())
 	    settingsWin->Show();
 	  settingsWin->Activate();
 	}
 	break;
+      }
+
+    case MOE_QUERY_MASCOTS:
+      {
+        BMessage reply(B_REPLY);
+        for (int32 i = 0; i < mMascotManager.CountMascots(); i++) {
+          entry_ref ref = mMascotManager.MascotAt(i)->Entry();
+          reply.AddRef("refs", &ref);
+        }
+        msg->SendReply(&reply);
+        break;
+      }
+
+    case MOE_MASCOT_ADD:
+      {
+        entry_ref srcRef;
+        if (msg->FindRef("refs", &srcRef) != B_OK)
+          break;
+
+        // Find mascots/ directory relative to app
+        app_info appInfo;
+        be_app->GetAppInfo(&appInfo);
+        BEntry appEntry(&appInfo.ref);
+        BPath appPath;
+        appEntry.GetPath(&appPath);
+        appPath.GetParent(&appPath);
+        appPath.GetParent(&appPath);
+        BPath testPath(appPath);
+        testPath.Append("mascots");
+        BDirectory testDir(testPath.Path());
+        if (testDir.InitCheck() != B_OK)
+          appPath.GetParent(&appPath);
+        BPath mascotsPath(appPath);
+        mascotsPath.Append("mascots");
+
+        create_directory(mascotsPath.Path(), 0755);
+
+        // Copy the file
+        BPath srcPath;
+        BEntry srcEntry(&srcRef);
+        srcEntry.GetPath(&srcPath);
+
+        BPath dstPath(mascotsPath);
+        dstPath.Append(srcRef.name);
+
+        BFile srcFile(srcPath.Path(), B_READ_ONLY);
+        BFile dstFile(dstPath.Path(), B_WRITE_ONLY | B_CREATE_FILE | B_ERASE_FILE);
+        if (srcFile.InitCheck() == B_OK && dstFile.InitCheck() == B_OK) {
+          off_t size;
+          srcFile.GetSize(&size);
+          char* buf = new char[size];
+          srcFile.Read(buf, size);
+          dstFile.Write(buf, size);
+          delete[] buf;
+
+          // Copy attributes (especially MOE:ANIME:*)
+          char attrName[B_ATTR_NAME_LENGTH];
+          srcFile.RewindAttrs();
+          while (srcFile.GetNextAttrName(attrName) == B_OK) {
+            attr_info info;
+            if (srcFile.GetAttrInfo(attrName, &info) == B_OK) {
+              char* attrBuf = new char[info.size];
+              srcFile.ReadAttr(attrName, info.type, 0, attrBuf, info.size);
+              dstFile.WriteAttr(attrName, info.type, 0, attrBuf, info.size);
+              delete[] attrBuf;
+            }
+          }
+
+          // Set MIME type
+          BNodeInfo nodeInfo(&dstFile);
+          nodeInfo.SetType("image/png");
+        }
+
+        // Reply with success and the new entry_ref
+        BMessage reply(B_REPLY);
+        entry_ref newRef;
+        get_ref_for_path(dstPath.Path(), &newRef);
+        reply.AddRef("refs", &newRef);
+        msg->SendReply(&reply);
+        break;
+      }
+
+    case MOE_MASCOT_REMOVE:
+      {
+        entry_ref ref;
+        if (msg->FindRef("refs", &ref) != B_OK)
+          break;
+
+        // Close mascot if it's open
+        MoeMascot* existing = mMascotManager.FindByRef(ref);
+        if (existing)
+          mMascotManager.Close(existing);
+
+        // Delete the file
+        BEntry entry(&ref);
+        if (entry.Exists())
+          entry.Remove();
+
+        this->PostMessage(MOE_EXAMINE_QUIT_REQUESTED);
+        break;
       }
 
     case MOE_MASCOT_REOPEN_REQUESTED:
